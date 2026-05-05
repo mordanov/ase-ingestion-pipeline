@@ -69,16 +69,7 @@ function ApiKeyGate() {
     )
   }
 
-  return (
-    <AppShell
-      onChangeKey={() => {
-        sessionStorage.removeItem('apiKey')
-        setKey(DEFAULT_API_KEY)
-        setSaved(false)
-        setError(null)
-      }}
-    />
-  )
+  return <AppShell />
 }
 
 function TreeNavLink({
@@ -142,7 +133,7 @@ function DevicesSection() {
   )
 }
 
-function Sidebar({ onChangeKey }: { onChangeKey: () => void }) {
+function Sidebar() {
   return (
     <aside className="w-52 shrink-0 bg-white border-r border-slate-200 flex flex-col min-h-screen">
       <div className="px-4 py-5 border-b border-slate-100">
@@ -158,25 +149,19 @@ function Sidebar({ onChangeKey }: { onChangeKey: () => void }) {
         </TreeNavLink>
       </nav>
 
-      <div className="px-3 py-4 border-t border-slate-100 space-y-1">
+      <div className="px-3 py-4 border-t border-slate-100">
         <p className="text-xs text-slate-400 truncate font-mono px-1">
           {sessionStorage.getItem('apiKey')}
         </p>
-        <button
-          onClick={onChangeKey}
-          className="w-full px-3 py-1.5 text-xs text-slate-500 border border-slate-200 rounded hover:bg-slate-50 text-left"
-        >
-          Change API key
-        </button>
       </div>
     </aside>
   )
 }
 
-function AppShell({ onChangeKey }: { onChangeKey: () => void }) {
+function AppShell() {
   return (
     <div className="min-h-screen flex bg-slate-50">
-      <Sidebar onChangeKey={onChangeKey} />
+      <Sidebar />
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<Navigate to="/credits" replace />} />
