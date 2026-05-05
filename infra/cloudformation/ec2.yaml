@@ -42,16 +42,6 @@ Parameters:
       e.g. "203.0.113.0/32". Set to 127.0.0.1/32 to disable SSH entirely and
       use SSM Session Manager only.
 
-  HostedZoneName:
-    Type: String
-    Default: "aleksandr-mordanov.click."
-    Description: Route 53 hosted zone name (must end with a dot).
-
-  RecordName:
-    Type: String
-    Default: "ingestion-pipeline.aleksandr-mordanov.click"
-    Description: Fully-qualified DNS name to bind to the instance's Elastic IP.
-
   VolumeSize:
     Type: Number
     Default: 30
@@ -242,17 +232,9 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # ══ Route 53 DNS record ═══════════════════════════════════════════════════════
-
-  DNSRecord:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneName: !Ref HostedZoneName
-      Name: !Ref RecordName
-      Type: A
-      TTL: "60"
-      ResourceRecords:
-        - !Ref ElasticIP
+  # Route 53 DNS record is managed centrally in the simulator's 07-cdn.yaml
+  # stack (IngestionDNSRecord). Pass the ElasticIP output of this stack as the
+  # IngestionPipelineIp parameter when deploying 07-cdn. Do not duplicate here.
 
 # ─── Outputs ──────────────────────────────────────────────────────────────────
 

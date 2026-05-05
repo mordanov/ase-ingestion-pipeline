@@ -37,8 +37,6 @@ INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
 KEY_NAME="${KEY_NAME:-}"
 SSH_CIDR="${SSH_CIDR:-0.0.0.0/0}"
 VOLUME_SIZE="${VOLUME_SIZE:-30}"
-HOSTED_ZONE_NAME="${HOSTED_ZONE_NAME:-aleksandr-mordanov.click.}"
-RECORD_NAME="${RECORD_NAME:-ingestion-pipeline.aleksandr-mordanov.click}"
 # VPC_ID must be set (defaults to the default VPC if not provided — resolved below)
 VPC_ID="${VPC_ID:-}"
 
@@ -108,8 +106,6 @@ PARAMS=(
   "ParameterKey=Environment,ParameterValue=${ENVIRONMENT}"
   "ParameterKey=InstanceType,ParameterValue=${INSTANCE_TYPE}"
   "ParameterKey=SSHAllowedCidr,ParameterValue=${SSH_CIDR}"
-  "ParameterKey=HostedZoneName,ParameterValue=${HOSTED_ZONE_NAME}"
-  "ParameterKey=RecordName,ParameterValue=${RECORD_NAME}"
   "ParameterKey=VolumeSize,ParameterValue=${VOLUME_SIZE}"
   "ParameterKey=VpcId,ParameterValue=${VPC_ID}"
 )
@@ -151,7 +147,6 @@ if [[ "$ACTION" == "deploy" ]]; then
 
   if [[ "$DRY_RUN" != "1" ]]; then
     PUBLIC_IP=$(stack_output "$STACK_NAME" "PublicIP")
-    DNS_NAME=$(stack_output "$STACK_NAME" "DNSName")
     INSTANCE_ID=$(stack_output "$STACK_NAME" "InstanceId")
 
     echo ""
@@ -160,13 +155,15 @@ if [[ "$ACTION" == "deploy" ]]; then
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "  Instance ID  : ${YELLOW}${INSTANCE_ID}${NC}"
-    echo -e "  Public IP    : ${YELLOW}${PUBLIC_IP}${NC}"
-    echo -e "  DNS          : ${YELLOW}${DNS_NAME}${NC}"
+    echo -e "  Elastic IP   : ${YELLOW}${PUBLIC_IP}${NC}"
+    echo ""
+    echo -e "  ${CYAN}Pass the Elastic IP to the simulator CDN stack:${NC}"
+    echo -e "     IngestionPipelineIp=${PUBLIC_IP}"
     echo ""
     echo -e "  Next steps:"
     echo -e "  ${CYAN}1. SSH in:${NC}"
     if [[ -n "$KEY_NAME" ]]; then
-      echo -e "     ssh ec2-user@${DNS_NAME}"
+      echo -e "     ssh ec2-user@ingestion-pipeline.aleksandr-mordanov.click"
     else
       echo -e "     aws ssm start-session --target ${INSTANCE_ID} --region ${REGION}${PROFILE:+ --profile ${PROFILE}}"
     fi
