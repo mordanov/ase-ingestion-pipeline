@@ -17,6 +17,7 @@ env/
 # Claude/Speckit specific
 .claude/
 .specify/
+specs/
 
 # Delta tables storage
 data/
