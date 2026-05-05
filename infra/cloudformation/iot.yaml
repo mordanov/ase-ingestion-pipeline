@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Health Platform — AWS IoT Core policy, topic rule, JITR Lambda"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: poc
+  KinesisStreamArn:
+    Type: String
+  KinesisStreamName:
+    Type: String
+  JitrLambdaRoleArn:
+    Type: String
+  IoTRuleRoleArn:
+    Type: String
+
+Resources:
+  DevicePolicy:
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyName: !Sub "${Environment}-HealthPlatformDevicePolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: iot:Connect
+            Resource: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/${!iot:Connection.Thing.ThingName}"
+          - Effect: Allow
+            Action: iot:Publish
+            Resource: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/health/telemetry/${!iot:Connection.Thing.ThingName}"
+          - Effect: Allow
+            Action: iot:Subscribe
+            Resource: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/health/telemetry/${!iot:Connection.Thing.ThingName}"
+
+  TelemetryTopicRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      RuleName: !Sub "${Environment}HealthTelemetryToKinesis"
+      TopicRulePayload:
+        Sql: "SELECT * FROM 'health/telemetry/+'"
+        Actions:
+          - Kinesis:
+              RoleArn: !Ref IoTRuleRoleArn
+              StreamName: !Ref KinesisStreamName
+              PartitionKey: "${topic()}"
+
+  JitrFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${Environment}-jitr-handler"
+      Runtime: python3.11
+      Handler: jitr_handler.handler
+      Role: !Ref JitrLambdaRoleArn
+      Timeout: 30
+      Code:
+        ZipFile: |
+          import boto3, json, logging
+          iot = boto3.client('iot')
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              cert_id = event['certificateId']
+              logger.info(f"JITR: activating cert {cert_id}")
+              iot.update_certificate(certificateId=cert_id, newStatus='ACTIVE')
+              thing_name = cert_id[:20]
+              try:
+                  iot.create_thing(thingName=thing_name)
+              except iot.exceptions.ResourceAlreadyExistsException:
+                  pass
+              iot.attach_thing_principal(thingName=thing_name, principal=event['certificateArn'])
+              iot.attach_policy(policyName='HealthPlatformDevicePolicy', target=event['certificateArn'])
+              return {'statusCode': 200}
+
+  JitrPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt JitrFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: iot.amazonaws.com
+      SourceArn: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/*"
+
+Outputs:
+  DevicePolicyArn:
+    Value: !Ref DevicePolicy
+    Export: { Name: !Sub "${Environment}-DevicePolicyArn" }
+  JitrFunctionArn:
+    Value: !GetAtt JitrFunction.Arn
+    Export: { Name: !Sub "${Environment}-JitrFunctionArn" }

@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Health Platform — IAM Roles and Policies"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: poc
+  KinesisStreamArn:
+    Type: String
+
+Resources:
+  EcsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-ecs-execution-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [secretsmanager:GetSecretValue]
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/health-platform/*"
+
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-ecs-task-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: KinesisAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListShards
+                Resource: !Ref KinesisStreamArn
+        - PolicyName: IotAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iot:CreateThing
+                  - iot:DescribeThing
+                  - iot:UpdateThingShadow
+                  - iot:GetThingShadow
+                  - iot:AttachThingPrincipal
+                  - iot:AttachPolicy
+                Resource: "*"
+        - PolicyName: S3ColdArchive
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject]
+                Resource: !Sub "arn:aws:s3:::${Environment}-health-archive/*"
+
+  JitrLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Environment}-jitr-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: JitrIotAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iot:UpdateCertificate
+                  - iot:CreateThing
+                  - iot:AttachThingPrincipal
+                  - iot:AttachPolicy
+                  - iot:DescribeCertificate
+                Resource: "*"
+
+Outputs:
+  EcsExecutionRoleArn:
+    Value: !GetAtt EcsExecutionRole.Arn
+    Export: { Name: !Sub "${Environment}-EcsExecutionRoleArn" }
+  EcsTaskRoleArn:
+    Value: !GetAtt EcsTaskRole.Arn
+    Export: { Name: !Sub "${Environment}-EcsTaskRoleArn" }
+  JitrLambdaRoleArn:
+    Value: !GetAtt JitrLambdaRole.Arn
+    Export: { Name: !Sub "${Environment}-JitrLambdaRoleArn" }

@@ -1,0 +1,60 @@
+groups:
+  - name: platform
+    rules:
+      - alert: HighRecommendationErrorRate
+        expr: rate(recommendation_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Recommendation error rate is high"
+          description: "More than 0.1 errors/s over the last 5 minutes (current: {{ $value | printf \"%.2f\" }}/s)."
+
+      - alert: HighIngestQuarantineRate
+        expr: >
+          rate(ingest_quarantine_total[5m])
+          / (rate(ingest_events_total[5m]) + 1) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High ingestion quarantine rate"
+          description: "More than 5% of ingested events are being quarantined (current: {{ $value | humanizePercentage }})."
+
+  - name: ml
+    rules:
+      - alert: MLModelStale
+        expr: ml_model_staleness_seconds > 86400
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ML models have not been retrained in over 24 hours"
+          description: "Model staleness is {{ $value | humanizeDuration }}. Trigger a retrain via POST /admin/ml/retrain."
+
+      - alert: MLInferenceLatencyHigh
+        expr: ml_inference_p99_latency_ms > 200
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ML inference P99 latency exceeds 200 ms"
+          description: "Current P99 latency is {{ $value | printf \"%.0f\" }} ms."
+
+      - alert: MLRerankerNDCGLow
+        expr: ml_reranker_ndcg_at_10 < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Re-ranker NDCG@10 is below acceptable threshold"
+          description: "NDCG@10 = {{ $value | printf \"%.4f\" }} (threshold: 0.5). Consider retraining with more data."
+
+      - alert: MLAnomalyDetectorF1Low
+        expr: ml_anomaly_detector_f1_score < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Anomaly detector F1 score is below acceptable threshold"
+          description: "F1 = {{ $value | printf \"%.4f\" }} (threshold: 0.5)."

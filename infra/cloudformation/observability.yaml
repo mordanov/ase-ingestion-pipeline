@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Health Platform — Prometheus and Grafana on ECS Fargate"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: poc
+  VpcId:
+    Type: String
+  PrivateSubnet1:
+    Type: String
+  PrivateSubnet2:
+    Type: String
+  EcsSGId:
+    Type: String
+  EcsClusterArn:
+    Type: String
+  EcsExecutionRoleArn:
+    Type: String
+  AlbArn:
+    Type: String
+
+Resources:
+  PrometheusLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${Environment}-prometheus"
+      RetentionInDays: 7
+
+  GrafanaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${Environment}-grafana"
+      RetentionInDays: 7
+
+  PrometheusTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${Environment}-prometheus"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: prometheus
+          Image: prom/prometheus:latest
+          PortMappings: [{ ContainerPort: 9090 }]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "/ecs/${Environment}-prometheus"
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  GrafanaTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${Environment}-grafana"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref EcsExecutionRoleArn
+      ContainerDefinitions:
+        - Name: grafana
+          Image: grafana/grafana:latest
+          PortMappings: [{ ContainerPort: 3000 }]
+          Environment:
+            - Name: GF_SECURITY_ADMIN_PASSWORD
+              Value: admin
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "/ecs/${Environment}-grafana"
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs

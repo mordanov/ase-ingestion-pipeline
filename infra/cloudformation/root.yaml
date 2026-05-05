@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Health Platform — Root stack, orchestrates all nested stacks"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: poc
+  TemplatesBucket:
+    Type: String
+    Description: "S3 bucket containing CloudFormation templates"
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Default: "changeme-in-prod"
+
+Resources:
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/cloudformation/networking.yaml"
+      Parameters:
+        Environment: !Ref Environment
+      TimeoutInMinutes: 15
+
+  StreamingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/cloudformation/streaming.yaml"
+      Parameters:
+        Environment: !Ref Environment
+      TimeoutInMinutes: 10
+
+  IamStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: StreamingStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/cloudformation/iam.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        KinesisStreamArn: !GetAtt StreamingStack.Outputs.StreamArn
+      TimeoutInMinutes: 10
+
+  IotStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [IamStack, StreamingStack]
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/cloudformation/iot.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        KinesisStreamArn: !GetAtt StreamingStack.Outputs.StreamArn
+        KinesisStreamName: !GetAtt StreamingStack.Outputs.StreamName
+        JitrLambdaRoleArn: !GetAtt IamStack.Outputs.JitrLambdaRoleArn
+        IoTRuleRoleArn: !GetAtt IamStack.Outputs.EcsTaskRoleArn
+      TimeoutInMinutes: 15
+
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [NetworkingStack, IamStack, StreamingStack]
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/cloudformation/compute.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !GetAtt NetworkingStack.Outputs.VpcId
+        PublicSubnet1: !GetAtt NetworkingStack.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt NetworkingStack.Outputs.PublicSubnet2
+        PrivateSubnet1: !GetAtt NetworkingStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt NetworkingStack.Outputs.PrivateSubnet2
+        AlbSGId: !GetAtt NetworkingStack.Outputs.AlbSGId
+        EcsSGId: !GetAtt NetworkingStack.Outputs.EcsSGId
+        RdsSGId: !GetAtt NetworkingStack.Outputs.RdsSGId
+        RedisSGId: !GetAtt NetworkingStack.Outputs.RedisSGId
+        EcsExecutionRoleArn: !GetAtt IamStack.Outputs.EcsExecutionRoleArn
+        EcsTaskRoleArn: !GetAtt IamStack.Outputs.EcsTaskRoleArn
+        KinesisStreamName: !GetAtt StreamingStack.Outputs.StreamName
+        DBPassword: !Ref DBPassword
+      TimeoutInMinutes: 30
+
+  ObservabilityStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ComputeStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/cloudformation/observability.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        VpcId: !GetAtt NetworkingStack.Outputs.VpcId
+        PrivateSubnet1: !GetAtt NetworkingStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt NetworkingStack.Outputs.PrivateSubnet2
+        EcsSGId: !GetAtt NetworkingStack.Outputs.EcsSGId
+        EcsClusterArn: ""
+        EcsExecutionRoleArn: !GetAtt IamStack.Outputs.EcsExecutionRoleArn
+        AlbArn: ""
+      TimeoutInMinutes: 15
+
+Outputs:
+  AlbDnsName:
+    Value: !GetAtt ComputeStack.Outputs.AlbDnsName
+  StreamName:
+    Value: !GetAtt StreamingStack.Outputs.StreamName
+  EcrRepositoryUri:
+    Value: !GetAtt ComputeStack.Outputs.EcrRepositoryUri

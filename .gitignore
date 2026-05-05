@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.Python
+
+# Claude/Speckit specific
+.claude/
+.specify/
+
+# Delta tables storage
+data/
+
+# Node modules
+frontend/node_modules/
+
+# Test & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+infra/certs/*.key
+infra/certs/*.pem
+infra/certs/*.crt
+
+# AWS
+.aws/
+*.tfstate
+*.tfstate.backup
+
+# Docker
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Alembic
+src/db/migrations/versions/*.py
+!src/db/migrations/versions/.gitkeep
+
+# Misc
+*.tmp
+*.bak
+Thumbs.db

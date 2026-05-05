@@ -1,0 +1,182 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Platform Alerts
+    folder: Platform
+    interval: 1m
+    rules:
+      - uid: high-recommendation-error-rate
+        title: High Recommendation Error Rate
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: rate(recommendation_errors_total[5m])
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: "A"
+              conditions:
+                - evaluator:
+                    params: [0.1]
+                    type: gt
+                  query:
+                    params: [A]
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Recommendation error rate exceeds 0.1/s
+
+      - uid: ml-model-stale
+        title: ML Model Stale (>24 h)
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: ml_model_staleness_seconds
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: "A"
+              conditions:
+                - evaluator:
+                    params: [86400]
+                    type: gt
+                  query:
+                    params: [A]
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: ML models have not been retrained in over 24 hours
+
+      - uid: ml-inference-latency-high
+        title: ML Inference P99 Latency High (>200 ms)
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: ml_inference_p99_latency_ms
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: "A"
+              conditions:
+                - evaluator:
+                    params: [200]
+                    type: gt
+                  query:
+                    params: [A]
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: ML inference P99 latency exceeds 200 ms
+
+      - uid: ml-reranker-ndcg-low
+        title: Re-ranker NDCG@10 Low (<0.5)
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: ml_reranker_ndcg_at_10
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: "A"
+              conditions:
+                - evaluator:
+                    params: [0.5]
+                    type: lt
+                  query:
+                    params: [A]
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Re-ranker NDCG@10 is below 0.5
+
+      - uid: high-ingest-quarantine-rate
+        title: High Ingest Quarantine Rate (>5%)
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: rate(ingest_quarantine_total[5m]) / (rate(ingest_events_total[5m]) + 1)
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              type: threshold
+              expression: "A"
+              conditions:
+                - evaluator:
+                    params: [0.05]
+                    type: gt
+                  query:
+                    params: [A]
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 5% of ingested events are being quarantined
