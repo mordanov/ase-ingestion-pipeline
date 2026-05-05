@@ -1,0 +1,301 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Health Ingestion Pipeline — EC2 instance.
+  Deploys a single Amazon Linux 2023 instance with Docker + Git pre-installed.
+  Attaches an Elastic IP and creates a Route 53 A record at the given hostname.
+  All application services (app, postgres, redis, mosquitto, grafana, …) are
+  started separately via docker compose on the instance.
+
+# ─── Parameters ───────────────────────────────────────────────────────────────
+
+Parameters:
+
+  ProjectName:
+    Type: String
+    Default: health-ingestion
+
+  Environment:
+    Type: String
+    Default: poc
+    AllowedValues: [poc, dev, staging, prod]
+
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues: [t3.small, t3.medium, t3.large, t3.xlarge]
+    Description: >
+      t3.medium (2 vCPU / 4 GB) is the recommended minimum for running all
+      Docker Compose services (app + postgres + redis + mosquitto + grafana).
+
+  KeyName:
+    Type: String
+    Default: ""
+    Description: >
+      Name of an existing EC2 key pair for SSH access.
+      Leave empty to skip key-pair association (use SSM Session Manager instead).
+
+  SSHAllowedCidr:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: >
+      CIDR allowed to connect on port 22. Restrict to your IP in production,
+      e.g. "203.0.113.0/32". Set to 127.0.0.1/32 to disable SSH entirely and
+      use SSM Session Manager only.
+
+  HostedZoneName:
+    Type: String
+    Default: "aleksandr-mordanov.click."
+    Description: Route 53 hosted zone name (must end with a dot).
+
+  RecordName:
+    Type: String
+    Default: "ingestion-pipeline.aleksandr-mordanov.click"
+    Description: Fully-qualified DNS name to bind to the instance's Elastic IP.
+
+  VolumeSize:
+    Type: Number
+    Default: 30
+    Description: Root EBS volume size in GiB (30 GB recommended for Docker images + data).
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: >
+      VPC in which to create the security group and launch the instance.
+      Use your default VPC ID (aws ec2 describe-vpcs --filters Name=is-default,Values=true
+      --query 'Vpcs[0].VpcId' --output text).
+
+# ─── Conditions ───────────────────────────────────────────────────────────────
+
+Conditions:
+  HasKeyPair: !Not [!Equals [!Ref KeyName, ""]]
+
+# ─── Resources ────────────────────────────────────────────────────────────────
+
+Resources:
+
+  # ══ IAM — SSM Session Manager access ════════════════════════════════════════
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-ec2-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${ProjectName}-${Environment}-ec2-profile"
+      Roles:
+        - !Ref InstanceRole
+
+  # ══ Security Group ═══════════════════════════════════════════════════════════
+
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${ProjectName}-${Environment}-sg"
+      GroupDescription: !Sub "Security group for ${ProjectName} EC2 instance"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+
+        # SSH
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHAllowedCidr
+          Description: SSH
+
+        # HTTP ingestion API (simulator → /ingest, /api/v1/devices)
+        - IpProtocol: tcp
+          FromPort: 9000
+          ToPort: 9000
+          CidrIp: "0.0.0.0/0"
+          Description: Ingestion API (HTTP)
+
+        # MQTT — plain
+        - IpProtocol: tcp
+          FromPort: 1883
+          ToPort: 1883
+          CidrIp: "0.0.0.0/0"
+          Description: MQTT (Mosquitto)
+
+        # MQTT — TLS
+        - IpProtocol: tcp
+          FromPort: 8883
+          ToPort: 8883
+          CidrIp: "0.0.0.0/0"
+          Description: MQTT over TLS (Mosquitto)
+
+        # Frontend UI
+        - IpProtocol: tcp
+          FromPort: 3200
+          ToPort: 3200
+          CidrIp: "0.0.0.0/0"
+          Description: Ingestion pipeline frontend
+
+        # Grafana
+        - IpProtocol: tcp
+          FromPort: 3100
+          ToPort: 3100
+          CidrIp: "0.0.0.0/0"
+          Description: Grafana dashboard
+
+        # Prometheus
+        - IpProtocol: tcp
+          FromPort: 9090
+          ToPort: 9090
+          CidrIp: "0.0.0.0/0"
+          Description: Prometheus metrics
+
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+          Description: Allow all outbound
+
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-sg"
+
+  # ══ Elastic IP ═══════════════════════════════════════════════════════════════
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-eip"
+
+  EIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref EC2Instance
+      EIP: !Ref ElasticIP
+
+  # ══ EC2 Instance ══════════════════════════════════════════════════════════════
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      # Latest Amazon Linux 2023 AMI (x86_64) — resolved at deploy time
+      ImageId: !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      KeyName: !If [HasKeyPair, !Ref KeyName, !Ref "AWS::NoValue"]
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroupIds:
+        - !Ref InstanceSG
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/user-data.log | logger -t user-data) 2>&1
+
+          echo "=== Updating system packages ==="
+          dnf update -y
+
+          echo "=== Installing Git ==="
+          dnf install -y git
+
+          echo "=== Installing Docker ==="
+          dnf install -y docker
+          systemctl enable docker
+          systemctl start docker
+          # Allow ec2-user to run docker without sudo
+          usermod -aG docker ec2-user
+
+          echo "=== Installing Docker Compose plugin ==="
+          DOCKER_COMPOSE_VERSION="v2.27.0"
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL \
+            "https://github.com/docker/compose/releases/download/${!DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64" \
+            -o /usr/local/lib/docker/cli-plugins/docker-compose
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+          # Also install as standalone binary for convenience
+          ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+
+          echo "=== Verifying installation ==="
+          git --version
+          docker --version
+          docker compose version
+
+          echo "=== Done. Clone the repo and run: docker compose up -d ==="
+
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ══ Route 53 DNS record ═══════════════════════════════════════════════════════
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Ref RecordName
+      Type: A
+      TTL: "60"
+      ResourceRecords:
+        - !Ref ElasticIP
+
+# ─── Outputs ──────────────────────────────────────────────────────────────────
+
+Outputs:
+
+  InstanceId:
+    Description: EC2 instance ID
+    Value: !Ref EC2Instance
+    Export:
+      Name: !Sub "${AWS::StackName}:InstanceId"
+
+  PublicIP:
+    Description: Elastic IP address
+    Value: !Ref ElasticIP
+    Export:
+      Name: !Sub "${AWS::StackName}:PublicIP"
+
+  DNSName:
+    Description: DNS hostname bound to the Elastic IP
+    Value: !Ref RecordName
+    Export:
+      Name: !Sub "${AWS::StackName}:DNSName"
+
+  SSHCommand:
+    Description: SSH command (requires KeyName to be set)
+    Value: !Sub "ssh ec2-user@${RecordName}"
+
+  SSMCommand:
+    Description: SSM Session Manager connect command (no key pair required)
+    Value: !Sub "aws ssm start-session --target ${EC2Instance} --region ${AWS::Region}"
+
+  DockerAPIEndpoint:
+    Description: HTTP ingestion endpoint (simulator default)
+    Value: !Sub "http://${RecordName}:9000/ingest"
+
+  MQTTBrokerURL:
+    Description: MQTT broker URL (simulator default)
+    Value: !Sub "mqtt://${RecordName}:1883"
+
+  FrontendURL:
+    Description: Ingestion pipeline frontend
+    Value: !Sub "http://${RecordName}:3200"
+
+  GrafanaURL:
+    Description: Grafana dashboard
+    Value: !Sub "http://${RecordName}:3100"
