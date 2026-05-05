@@ -77,79 +77,88 @@ jobs:
       cancel-in-progress: false
 
     steps:
+      - name: Set up SSH key
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/deploy_key
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
       - name: Bootstrap and deploy
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          REPO: ${{ github.repository }}
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: GH_TOKEN,REPO
-          command_timeout: 15m
-          script_stop: true
-          script: |
-            set -euo pipefail
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+              bash -s -- \
+              "${{ secrets.GH_TOKEN }}" \
+              "${{ github.repository }}" \
+              << 'SCRIPT'
+          set -euo pipefail
+          GH_TOKEN="$1"
+          REPO="$2"
 
-            # ── 1. Install Docker (idempotent) ──────────────────────────────
-            if ! command -v docker &>/dev/null; then
-              echo "[bootstrap] Installing Docker..."
-              curl -fsSL https://get.docker.com | sudo sh
-              sudo usermod -aG docker "$USER"
-            fi
+          # ── 1. Install Docker (idempotent) ─────────────────────────────
+          if ! command -v docker &>/dev/null; then
+            echo "[bootstrap] Installing Docker..."
+            curl -fsSL https://get.docker.com | sudo sh
+            sudo usermod -aG docker "$USER"
+          fi
+          sudo systemctl enable docker --now
 
-            sudo systemctl enable docker --now
-
-            # ── 2. Install git (idempotent) ─────────────────────────────────
-            if ! command -v git &>/dev/null; then
-              echo "[bootstrap] Installing git..."
-              if command -v apt-get &>/dev/null; then
-                sudo apt-get update -qq && sudo apt-get install -y git
-              else
-                sudo yum install -y git
-              fi
-            fi
-
-            # ── 3. Clone or update repository ───────────────────────────────
-            APP_DIR="$HOME/platform"
-            REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-
-            if [ -d "$APP_DIR/.git" ]; then
-              echo "[deploy] Pulling latest code..."
-              git -C "$APP_DIR" remote set-url origin "$REMOTE"
-              git -C "$APP_DIR" fetch --prune
-              git -C "$APP_DIR" reset --hard origin/main
+          # ── 2. Install git (idempotent) ────────────────────────────────
+          if ! command -v git &>/dev/null; then
+            echo "[bootstrap] Installing git..."
+            if command -v apt-get &>/dev/null; then
+              sudo apt-get update -qq && sudo apt-get install -y git
             else
-              echo "[deploy] Cloning repository..."
-              git clone "$REMOTE" "$APP_DIR"
+              sudo yum install -y git
             fi
+          fi
 
-            # ── 4. Build and restart services ───────────────────────────────
-            cd "$APP_DIR"
-            echo "[deploy] Building and starting containers..."
-            docker compose up --build -d --remove-orphans
+          # ── 3. Clone or update repository ─────────────────────────────
+          APP_DIR="$HOME/platform"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
-            # ── 5. Wait for app to be healthy ────────────────────────────────
-            echo "[deploy] Waiting for app to be healthy..."
-            for i in $(seq 1 30); do
-              if docker compose exec -T app curl -sf http://localhost:8000/health &>/dev/null; then
-                echo "[deploy] App is healthy."
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "[deploy] Timed out waiting for app health check."
-                docker compose logs app --tail 50
-                exit 1
-              fi
-              sleep 5
-            done
+          if [ -d "$APP_DIR/.git" ]; then
+            echo "[deploy] Pulling latest code..."
+            git -C "$APP_DIR" remote set-url origin "$REMOTE"
+            git -C "$APP_DIR" fetch --prune
+            git -C "$APP_DIR" reset --hard origin/main
+          else
+            echo "[deploy] Cloning repository..."
+            git clone "$REMOTE" "$APP_DIR"
+          fi
 
-            # ── 6. Run database migrations ───────────────────────────────────
-            echo "[deploy] Running migrations..."
-            docker compose exec -T app alembic upgrade head
+          # ── 4. Guard: .env must exist before starting ──────────────────
+          if [ ! -f "$APP_DIR/.env" ]; then
+            echo "[deploy] ERROR: $APP_DIR/.env not found. Create it on the instance before deploying."
+            exit 1
+          fi
 
-            # ── 7. Remove dangling images ────────────────────────────────────
-            docker image prune -f
+          # ── 5. Build and restart services ─────────────────────────────
+          cd "$APP_DIR"
+          echo "[deploy] Building and starting containers..."
+          sudo -E docker compose up --build -d --remove-orphans
 
-            echo "[deploy] Done."
+          # ── 6. Wait for app to be healthy ──────────────────────────────
+          echo "[deploy] Waiting for app to be healthy..."
+          for i in $(seq 1 30); do
+            if sudo docker compose exec -T app curl -sf http://localhost:8000/health &>/dev/null; then
+              echo "[deploy] App is healthy."
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "[deploy] Timed out waiting for app health check."
+              sudo docker compose logs app --tail 50
+              exit 1
+            fi
+            sleep 5
+          done
+
+          # ── 7. Run database migrations ─────────────────────────────────
+          echo "[deploy] Running migrations..."
+          sudo docker compose exec -T app alembic upgrade head
+
+          # ── 8. Remove dangling images ──────────────────────────────────
+          sudo docker image prune -f
+
+          echo "[deploy] Done."
+          SCRIPT
