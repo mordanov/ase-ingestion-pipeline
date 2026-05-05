@@ -1,4 +1,4 @@
-.PHONY: dev stop test test-unit test-integration test-contract lint migrate seed logs gen-ca deploy help frontend-dev test-frontend build-frontend compact-parquet compact-delta
+.PHONY: dev stop test test-unit test-integration test-contract lint migrate seed logs gen-ca deploy help frontend-dev test-frontend build-frontend compact-delta
 
 COMPOSE = docker-compose
 PYTHON = python
@@ -21,8 +21,7 @@ help:
 	@echo "  frontend-dev     Start Vite dev server (hot-reload on port 5173)"
 	@echo "  test-frontend    Run frontend tests (Vitest)"
 	@echo "  build-frontend   Build frontend static assets"
-	@echo "  compact-parquet  Compact legacy Parquet files (./data/parquet)"
-	@echo "  compact-delta    Compact Delta Lake event + recommendations tables"
+	@echo "  compact-delta    Compact + vacuum + checkpoint Delta Lake tables"
 
 dev:
 	mkdir -p ./data/delta ./data/parquet ./data/models ./data/packages
@@ -88,8 +87,5 @@ ps:
 shell:
 	$(COMPOSE) exec app bash
 
-compact-parquet:
-	$(PYTHON) scripts/compact_parquet.py --base-dir ./data/parquet
-
 compact-delta:
-	$(PYTHON) scripts/compact_delta.py --base-dir ./data/delta
+	$(PYTHON) scripts/compact_delta.py --base-dir ./data/delta --recommendations-dir ./data/recommendations

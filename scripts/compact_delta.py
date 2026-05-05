@@ -48,6 +48,12 @@ def compact_table(path: Path, label: str, dry_run: bool) -> bool:
     removed = dt.vacuum(retention_hours=0, enforce_retention_duration=False, dry_run=False)
     print(f"[{label}]   removed       : {len(removed)} file(s)")
 
+    print(f"[{label}] Writing transaction log checkpoint…")
+    dt.create_checkpoint()
+
+    print(f"[{label}] Cleaning up superseded log entries…")
+    dt.cleanup_metadata()
+
     print(
         f"[{label}] Done. Table is now at version {dt.version()} with {len(dt.file_uris())} part-file(s)."
     )
