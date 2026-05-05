@@ -252,12 +252,6 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}:PublicIP"
 
-  DNSName:
-    Description: DNS hostname bound to the Elastic IP
-    Value: !Ref RecordName
-    Export:
-      Name: !Sub "${AWS::StackName}:DNSName"
-
   SSHCommand:
     Description: SSH command (requires KeyName to be set)
     Value: !Sub "ssh ec2-user@${RecordName}"
@@ -265,19 +259,3 @@ Outputs:
   SSMCommand:
     Description: SSM Session Manager connect command (no key pair required)
     Value: !Sub "aws ssm start-session --target ${EC2Instance} --region ${AWS::Region}"
-
-  DockerAPIEndpoint:
-    Description: HTTP ingestion endpoint (simulator default)
-    Value: !Sub "http://${RecordName}:9000/ingest"
-
-  MQTTBrokerURL:
-    Description: MQTT broker URL (simulator default)
-    Value: !Sub "mqtt://${RecordName}:1883"
-
-  FrontendURL:
-    Description: Ingestion pipeline frontend
-    Value: !Sub "http://${RecordName}:3200"
-
-  GrafanaURL:
-    Description: Grafana dashboard
-    Value: !Sub "http://${RecordName}:3100"

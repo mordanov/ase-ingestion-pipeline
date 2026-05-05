@@ -92,6 +92,9 @@ services:
     ports:
       - "3100:3000"
     environment:
+      GF_SERVER_ROOT_URL: https://grafana.aleksandr-mordanov.click
+      GF_SERVER_DOMAIN: grafana.aleksandr-mordanov.click
+      GF_SECURITY_CSRF_TRUSTED_ORIGINS: grafana.aleksandr-mordanov.click
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
