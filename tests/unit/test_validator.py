@@ -30,6 +30,7 @@ async def test_valid_event_passes():
     session.execute = AsyncMock(
         return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
     )
+    session.scalar = AsyncMock(return_value=None)
 
     event = _make_event()
     result = await validate_event(event, session)
@@ -59,6 +60,7 @@ async def test_stale_timestamp_sets_flag():
     session.execute = AsyncMock(
         return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
     )
+    session.scalar = AsyncMock(return_value=None)
 
     result = await validate_event(event, session)
     assert result.is_stale
@@ -73,6 +75,7 @@ async def test_anomaly_flag_passthrough():
     session.execute = AsyncMock(
         return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
     )
+    session.scalar = AsyncMock(return_value=None)
 
     result = await validate_event(event, session)
     assert result.is_valid
@@ -91,3 +94,19 @@ async def test_unknown_device_quarantines():
     result = await validate_event(event, session)
     assert not result.is_valid
     assert result.error_code == "UNKNOWN_DEVICE"
+
+
+@pytest.mark.asyncio
+async def test_disabled_device_returns_invalid():
+    from src.ingestion.validator import validate_event
+
+    event = _make_event()
+    session = AsyncMock()
+    session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
+    )
+    session.scalar = AsyncMock(return_value=object())  # non-None → disabled
+
+    result = await validate_event(event, session)
+    assert not result.is_valid
+    assert result.error_code == "DEVICE_DISABLED"
