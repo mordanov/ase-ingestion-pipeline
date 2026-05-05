@@ -7,12 +7,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.db.base import Base
 
 
-class ModelType(str, enum.Enum):
+class ModelType(enum.StrEnum):
     reranker = "reranker"
     anomaly_detector = "anomaly_detector"
 
 
-class ModelDeploymentStatus(str, enum.Enum):
+class ModelDeploymentStatus(enum.StrEnum):
     active = "active"
     archived = "archived"
     failed = "failed"

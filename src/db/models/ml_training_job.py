@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.db.base import Base
 
 
-class TrainingJobStatus(str, enum.Enum):
+class TrainingJobStatus(enum.StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"

@@ -1,6 +1,8 @@
 import math
 import uuid
 from datetime import UTC, datetime
+from time import monotonic
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +18,7 @@ _tracer = get_tracer("ml.anomaly_detector")
 _ACTIVITY_INTENSIFICATION_TERMS = frozenset(
     ["exercise", "run", "workout", "activity", "steps", "intensity", "cardio", "training", "jog"]
 )
-_TELEMETRY_FEATURES = ("heart_rate", "steps", "sleep_duration", "activity_level_num")
+_BASELINE_FEATURES = ("heart_rate", "steps", "sleep_duration")
 
 
 class ZScoreAnomalyDetector(AnomalyDetector):
@@ -32,9 +34,7 @@ class ZScoreAnomalyDetector(AnomalyDetector):
 
         Returns AnomalyResult with has_baseline=False when device has insufficient history (FR-008).
         """
-        import time as _time
-
-        start = _time.monotonic()
+        start = monotonic()
         with _tracer.start_as_current_span("ml.anomaly_detector.detect") as span:
             span.set_attribute("device_id", device_id)
             span.set_attribute("baseline_days", baseline_days)
@@ -60,7 +60,7 @@ class ZScoreAnomalyDetector(AnomalyDetector):
 
             await self._persist_reading(device_id, reading, score, exceeded)
 
-            elapsed_ms = (_time.monotonic() - start) * 1000
+            elapsed_ms = (monotonic() - start) * 1000
             logger.debug(
                 "anomaly_detected",
                 device_id=device_id,
@@ -74,36 +74,44 @@ class ZScoreAnomalyDetector(AnomalyDetector):
 
     async def _compute_baseline_stats(self, device_id: str) -> dict | None:
         """Load per-feature mean/std from recent AnomalyReading history."""
-        result = await self._db.execute(
-            select(AnomalyReading)
-            .where(AnomalyReading.device_id == device_id)
-            .order_by(AnomalyReading.reading_timestamp.desc())
-            .limit(200)
-        )
-        readings = result.scalars().all()
+        readings = await self._load_recent_readings(device_id)
         if len(readings) < 10:
             return None
 
-        stats: dict[str, dict] = {}
-        for feature in ("heart_rate", "steps", "sleep_duration"):
-            values = [
-                r.evaluated_fields.get(feature)
-                for r in readings
-                if r.evaluated_fields.get(feature) is not None
-            ]
+        stats: dict[str, dict[str, float]] = {}
+        for feature in _BASELINE_FEATURES:
+            values = self._feature_values(readings, feature)
             if len(values) >= 5:
                 mean = sum(values) / len(values)
                 variance = sum((v - mean) ** 2 for v in values) / len(values)
                 stats[feature] = {"mean": mean, "std": math.sqrt(variance) + 1e-6}
         return stats if stats else None
 
-    def _compute_zscore(self, reading: dict, stats: dict) -> float:
+    async def _load_recent_readings(self, device_id: str) -> list[AnomalyReading]:
+        result = await self._db.execute(
+            select(AnomalyReading)
+            .where(AnomalyReading.device_id == device_id)
+            .order_by(AnomalyReading.reading_timestamp.desc())
+            .limit(200)
+        )
+        return result.scalars().all()
+
+    @staticmethod
+    def _feature_values(readings: list[AnomalyReading], feature: str) -> list[float]:
+        values: list[float] = []
+        for reading in readings:
+            value = (reading.evaluated_fields or {}).get(feature)
+            if value is not None:
+                values.append(float(value))
+        return values
+
+    def _compute_zscore(self, reading: dict[str, Any], stats: dict[str, dict[str, float]]) -> float:
         """Max normalised deviation across evaluated features, mapped to [0, 1] via sigmoid."""
         z_scores = []
-        for feature, s in stats.items():
+        for feature, feature_stats in stats.items():
             val = reading.get(feature)
             if val is not None:
-                z = abs((float(val) - s["mean"]) / s["std"])
+                z = abs((float(val) - feature_stats["mean"]) / feature_stats["std"])
                 z_scores.append(z)
         if not z_scores:
             return 0.0
@@ -115,7 +123,7 @@ class ZScoreAnomalyDetector(AnomalyDetector):
         self, device_id: str, reading: dict, score: float, exceeded: bool
     ) -> None:
         evaluated = {
-            k: reading.get(k) for k in ("heart_rate", "steps", "sleep_duration") if k in reading
+            feature: reading.get(feature) for feature in _BASELINE_FEATURES if feature in reading
         }
         record = AnomalyReading(
             id=uuid.uuid4(),

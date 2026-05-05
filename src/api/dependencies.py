@@ -4,10 +4,22 @@ from typing import Annotated
 
 import httpx
 from fastapi import Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.http_client import get_http_client as get_shared_http_client
 from src.config import Settings, get_settings
+from src.credits.ledger import CreditLedger
+from src.credits.tier_engine import TierEngine
 from src.db.base import get_db
+from src.db.models.provider_schema import ProviderSchema
+from src.digital_twin.iot_core_adapter import IotCoreAdapter
+from src.digital_twin.local_registry_adapter import LocalRegistryAdapter
+from src.ingestion.publisher import KinesisPublisher, LocalRedisStreamsPublisher
+from src.recommendation.adapters.dynamic_adapter import DynamicAdapter
+from src.recommendation.adapters.service1_adapter import Service1Adapter
+from src.recommendation.adapters.service2_adapter import Service2Adapter
+from src.recommendation.adapters.service3_adapter import Service3Adapter
 
 # ── DB ────────────────────────────────────────────────────────────────────────
 
@@ -25,9 +37,7 @@ AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
 def get_http_client() -> httpx.AsyncClient:
-    from src.api.main import get_http_client as _get
-
-    return _get()
+    return get_shared_http_client()
 
 
 HttpClient = Annotated[httpx.AsyncClient, Depends(get_http_client)]
@@ -37,9 +47,6 @@ HttpClient = Annotated[httpx.AsyncClient, Depends(get_http_client)]
 
 
 def get_publisher():
-    from src.config import get_settings
-    from src.ingestion.publisher import KinesisPublisher, LocalRedisStreamsPublisher
-
     settings = get_settings()
     if settings.local_dev:
         return LocalRedisStreamsPublisher(settings.redis_url, settings.kinesis_stream_name)
@@ -53,20 +60,11 @@ Publisher = Annotated[object, Depends(get_publisher)]
 
 
 async def get_provider_adapters(http_client: HttpClient, settings: AppSettings, db: DbSession):
-    from sqlalchemy import select as _select
-
-    from src.db.models.provider_schema import ProviderSchema
-    from src.recommendation.adapters.dynamic_adapter import DynamicAdapter
-    from src.recommendation.adapters.service1_adapter import Service1Adapter
-    from src.recommendation.adapters.service2_adapter import Service2Adapter
-
     adapters = [
         Service1Adapter(http_client, settings.service1_endpoint, settings.service1_token),
         Service2Adapter(http_client, settings.service2_endpoint),
     ]
     if settings.service3_endpoint:
-        from src.recommendation.adapters.service3_adapter import Service3Adapter
-
         adapters.append(
             Service3Adapter(
                 http_client,
@@ -77,7 +75,7 @@ async def get_provider_adapters(http_client: HttpClient, settings: AppSettings, 
         )
 
     rows = (
-        (await db.execute(_select(ProviderSchema).where(ProviderSchema.is_active))).scalars().all()
+        (await db.execute(select(ProviderSchema).where(ProviderSchema.is_active))).scalars().all()
     )
     for row in rows:
         adapters.append(
@@ -101,11 +99,7 @@ ProviderAdapters = Annotated[list, Depends(get_provider_adapters)]
 
 def get_twin_adapter(settings: AppSettings):
     if settings.local_dev:
-        from src.digital_twin.local_registry_adapter import LocalRegistryAdapter
-
         return LocalRegistryAdapter()
-    from src.digital_twin.iot_core_adapter import IotCoreAdapter
-
     return IotCoreAdapter(
         settings.aws_region,
         settings.aws_iot_endpoint,
@@ -122,8 +116,6 @@ TwinAdapter = Annotated[object, Depends(get_twin_adapter)]
 
 @lru_cache
 def get_credit_ledger():
-    from src.credits.ledger import CreditLedger
-
     return CreditLedger()
 
 
@@ -132,8 +124,6 @@ CreditLedgerDep = Annotated[object, Depends(get_credit_ledger)]
 
 @lru_cache
 def get_tier_engine():
-    from src.credits.tier_engine import TierEngine
-
     return TierEngine()
 
 

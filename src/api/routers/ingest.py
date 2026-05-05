@@ -2,13 +2,15 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from src.api.dependencies import DbSession, Publisher
 from src.config import get_settings
-from src.db.models import TelemetryEvent
+from src.credits.config_service import ConfigService
+from src.credits.earning_service import EarningService
+from src.db.models import Device, TelemetryEvent
 from src.db.models.telemetry import SourceProtocol as DBSourceProtocol
 from src.db.models.telemetry import ValidationStatus
 from src.ingestion.adapters.http_adapter import HttpIngestionAdapter
@@ -37,8 +39,67 @@ class IngestResponse(BaseModel):
     accepted: int
     quarantined: int
     batch_id: str | None = None
-    credit_results: list[EventCreditResult] = []
-    device_disabled_ids: list[str] = []
+    credit_results: list[EventCreditResult] = Field(default_factory=list)
+    device_disabled_ids: list[str] = Field(default_factory=list)
+
+
+async def _is_duplicate_event(db: DbSession, event_id: str) -> bool:
+    duplicate = await db.execute(
+        select(TelemetryEvent.id).where(TelemetryEvent.event_id == event_id)
+    )
+    return duplicate.scalar_one_or_none() is not None
+
+
+def _to_telemetry_event(event, trace_id: str, is_stale: bool, is_anomaly: bool) -> TelemetryEvent:
+    validation_status = ValidationStatus.stale if is_stale else ValidationStatus.valid
+    return TelemetryEvent(
+        id=uuid.uuid4(),
+        event_id=event.event_id,
+        device_id=event.device_id,
+        source_protocol=DBSourceProtocol.http,
+        event_timestamp=event.event_timestamp,
+        is_stale=is_stale,
+        is_anomaly=is_anomaly,
+        validation_status=validation_status,
+        payload=event.payload,
+        trace_id=trace_id,
+    )
+
+
+async def _append_credit_result(
+    db: DbSession,
+    earning_service: EarningService,
+    event,
+    credit_results: list[EventCreditResult],
+) -> None:
+    device = (
+        await db.execute(select(Device).where(Device.device_id == event.device_id))
+    ).scalar_one_or_none()
+    if device is None:
+        return
+
+    try:
+        awarded = await earning_service.award_for_event(event, device)
+    except Exception as exc:
+        logger.warning("earning_failed", event_id=event.event_id, error=str(exc))
+        return
+
+    tier = device.reward_tier
+    credit_results.append(
+        EventCreditResult(
+            device_id=event.device_id,
+            activity_reward=awarded,
+            resulting_balance=device.credit_balance,
+            reward_tier=tier.value if hasattr(tier, "value") else str(tier),
+        )
+    )
+
+
+async def _publish_event(publisher: Publisher, event) -> None:
+    try:
+        await publisher.publish(event)
+    except Exception as exc:
+        logger.warning("publish_failed", event_id=event.event_id, error=str(exc))
 
 
 @router.post("/ingest", response_model=IngestResponse, status_code=202)
@@ -69,10 +130,6 @@ async def ingest(
     accepted_records: list[EventRecord] = []
     device_disabled_ids: list[str] = []
 
-    from src.credits.config_service import ConfigService
-    from src.credits.earning_service import EarningService
-    from src.db.models import Device
-
     config_svc = ConfigService(db)
     earning_svc = EarningService(db, config_svc)
 
@@ -91,53 +148,15 @@ async def ingest(
 
             event.is_anomaly = result.is_anomaly
 
-            dup = await db.execute(
-                select(TelemetryEvent.id).where(TelemetryEvent.event_id == event.event_id)
-            )
-            if dup.scalar_one_or_none() is not None:
+            if await _is_duplicate_event(db, event.event_id):
                 continue  # idempotent: duplicate event_id silently skipped
 
-            validation_status = (
-                ValidationStatus.stale if result.is_stale else ValidationStatus.valid
-            )
-            te = TelemetryEvent(
-                id=uuid.uuid4(),
-                event_id=event.event_id,
-                device_id=event.device_id,
-                source_protocol=DBSourceProtocol.http,
-                event_timestamp=event.event_timestamp,
-                is_stale=result.is_stale,
-                is_anomaly=result.is_anomaly,
-                validation_status=validation_status,
-                payload=event.payload,
-                trace_id=trace_id,
-            )
-            db.add(te)
+            db.add(_to_telemetry_event(event, trace_id, result.is_stale, result.is_anomaly))
 
             # Award credits for this event
-            device_result = await db.execute(
-                select(Device).where(Device.device_id == event.device_id)
-            )
-            device = device_result.scalar_one_or_none()
-            if device is not None:
-                try:
-                    awarded = await earning_svc.award_for_event(event, device)
-                    tier = device.reward_tier
-                    credit_results.append(
-                        EventCreditResult(
-                            device_id=event.device_id,
-                            activity_reward=awarded,
-                            resulting_balance=device.credit_balance,
-                            reward_tier=tier.value if hasattr(tier, "value") else str(tier),
-                        )
-                    )
-                except Exception as earn_exc:
-                    logger.warning("earning_failed", event_id=event.event_id, error=str(earn_exc))
+            await _append_credit_result(db, earning_svc, event, credit_results)
 
-            try:
-                await publisher.publish(event)
-            except Exception as pub_exc:
-                logger.warning("publish_failed", event_id=event.event_id, error=str(pub_exc))
+            await _publish_event(publisher, event)
 
             accepted_records.append(EventRecord(event=event, is_stale=result.is_stale))
             accepted += 1

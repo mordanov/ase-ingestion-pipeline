@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.db.base import Base
 
 
-class CreditActionType(str, enum.Enum):
+class CreditActionType(enum.StrEnum):
     recommendation = "recommendation"
     registration_bonus = "registration_bonus"
     top_up = "top_up"

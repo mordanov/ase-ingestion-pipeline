@@ -1,129 +1,107 @@
+import asyncio
+import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
-import httpx
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
 
-from src.config import get_settings
+from src.api.dependencies import get_db_session, get_publisher
+from src.api.http_client import close_http_client, init_http_client
+from src.api.routers import (
+    credit_config,
+    devices,
+    health,
+    ingest,
+    ml_metrics,
+    ml_training,
+    provider_schemas,
+    recommendations,
+    reports,
+    rules,
+)
+from src.config import Settings, get_settings
+from src.credits.config_service import ConfigService
+from src.db.models import Device
+from src.ingestion.adapters.http_adapter import HttpIngestionAdapter
+from src.ingestion.adapters.mqtt_consumer import MqttConsumerConfig, MqttKinesisConsumer
+from src.ml.feature_store import RedisFeatureStore, refresh_embeddings_for_all_devices
 from src.observability.logging import configure_logging, get_logger
+from src.observability.metrics import (
+    ACTIVE_DEVICES_TOTAL,
+    CREDIT_TIER_TOTAL,
+    DEVICE_CREDIT_BALANCE,
+    DEVICE_STREAK_DAYS,
+)
+from src.observability.tracing import configure_tracer
 
 logger = get_logger(__name__)
-_http_client: httpx.AsyncClient | None = None
 
 
-def get_http_client() -> httpx.AsyncClient:
-    if _http_client is None:
-        raise RuntimeError("HTTP client not initialised")
-    return _http_client
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global _http_client
-    settings = get_settings()
-    configure_logging(settings.log_level)
-    logger.info("starting_up", local_dev=settings.local_dev)
-
-    _http_client = httpx.AsyncClient(timeout=httpx.Timeout(1.5))
-
-    import asyncio as _asyncio
-    import os as _os
-
-    from alembic import command as alembic_command
-    from alembic.config import Config as AlembicConfig
-
-    _alembic_ini = _os.path.join(_os.path.dirname(__file__), "..", "..", "alembic.ini")
-    _alembic_cfg = AlembicConfig(_alembic_ini)
-    await _asyncio.to_thread(alembic_command.upgrade, _alembic_cfg, "head")
+async def _apply_migrations() -> None:
+    alembic_ini = os.path.join(os.path.dirname(__file__), "..", "..", "alembic.ini")
+    alembic_config = AlembicConfig(alembic_ini)
+    await asyncio.to_thread(alembic_command.upgrade, alembic_config, "head")
     logger.info("migrations_applied")
 
-    from src.observability.tracing import configure_tracer
 
-    configure_tracer(settings.otel_service_name)
-
-    # Seed default credit config if missing
-    from src.api.dependencies import get_db_session as _get_db
-    from src.credits.config_service import ConfigService as _ConfigService
-
-    async for _db in _get_db():
-        await _ConfigService(_db).seed_default_if_missing()
+async def _seed_default_credit_config() -> None:
+    async for session in get_db_session():
+        await ConfigService(session).seed_default_if_missing()
         break
 
-    # Seed Prometheus gauges from DB so dashboards show current state after restart
-    from sqlalchemy import func as _func
-    from sqlalchemy import select as _select
 
-    from src.db.models import Device as _Device
-    from src.observability.metrics import (
-        ACTIVE_DEVICES_TOTAL as _ACTIVE_DEVICES_TOTAL,
-    )
-    from src.observability.metrics import (
-        CREDIT_TIER_TOTAL as _CREDIT_TIER_TOTAL,
-    )
-    from src.observability.metrics import (
-        DEVICE_CREDIT_BALANCE as _DEVICE_CREDIT_BALANCE,
-    )
-    from src.observability.metrics import (
-        DEVICE_STREAK_DAYS as _DEVICE_STREAK_DAYS,
-    )
+async def _seed_prometheus_gauges() -> None:
+    async for session in get_db_session():
+        device_count = (await session.execute(select(func.count(Device.id)))).scalar_one()
+        ACTIVE_DEVICES_TOTAL.set(device_count)
 
-    async for _db in _get_db():
-        _count = (await _db.execute(_select(_func.count(_Device.id)))).scalar_one()
-        _ACTIVE_DEVICES_TOTAL.set(_count)
+        devices_rows = (await session.execute(select(Device))).scalars().all()
+        for device in devices_rows:
+            DEVICE_CREDIT_BALANCE.labels(device_id=device.device_id).set(device.credit_balance)
+            DEVICE_STREAK_DAYS.labels(device_id=device.device_id).set(device.streak_days or 0)
 
-        _devices = (await _db.execute(_select(_Device))).scalars().all()
-        for _dev in _devices:
-            _DEVICE_CREDIT_BALANCE.labels(device_id=_dev.device_id).set(_dev.credit_balance)
-            _DEVICE_STREAK_DAYS.labels(device_id=_dev.device_id).set(_dev.streak_days or 0)
-
-        _tier_rows = (
-            await _db.execute(
-                _select(_Device.reward_tier, _func.count(_Device.id)).group_by(_Device.reward_tier)
+        tier_rows = (
+            await session.execute(
+                select(Device.reward_tier, func.count(Device.id)).group_by(Device.reward_tier)
             )
         ).all()
-        for _tier, _tier_count in _tier_rows:
-            _CREDIT_TIER_TOTAL.labels(tier=_tier.value).set(_tier_count)
+        for tier, tier_count in tier_rows:
+            CREDIT_TIER_TOTAL.labels(tier=tier.value).set(tier_count)
         break
 
-    # Start MQTT consumer to ingest telemetry published to the local Mosquitto broker
-    from urllib.parse import urlparse as _urlparse
 
-    from src.api.dependencies import get_db_session as _get_db_mqtt
-    from src.api.dependencies import get_publisher
-    from src.ingestion.adapters.http_adapter import HttpIngestionAdapter
-    from src.ingestion.adapters.mqtt_consumer import MqttConsumerConfig, MqttKinesisConsumer
-
-    _mqtt_url = _urlparse(settings.mqtt_broker_url)
-    _mqtt_consumer = MqttKinesisConsumer(
+def _start_mqtt_consumer(settings: Settings) -> None:
+    mqtt_url = urlparse(settings.mqtt_broker_url)
+    consumer = MqttKinesisConsumer(
         config=MqttConsumerConfig(
-            broker_host=_mqtt_url.hostname or "localhost",
-            broker_port=_mqtt_url.port or 1883,
-            topic=settings.mqtt_topic_prefix + "/+",
+            broker_host=mqtt_url.hostname or "localhost",
+            broker_port=mqtt_url.port or 1883,
+            topic=f"{settings.mqtt_topic_prefix}/+",
         ),
         adapter=HttpIngestionAdapter(),
         publisher=get_publisher(),
-        session_factory=_get_db_mqtt,
+        session_factory=get_db_session,
     )
-    import asyncio as _asyncio
-
-    _asyncio.create_task(_mqtt_consumer.start())
+    asyncio.create_task(consumer.start())
     logger.info("mqtt_consumer_started", broker=settings.mqtt_broker_url)
 
-    # Start background embedding refresh so per-device personalization is populated in Redis
-    from src.api.dependencies import get_db_session as _get_db_embed
-    from src.ml.feature_store import RedisFeatureStore, refresh_embeddings_for_all_devices
 
-    _feature_store = RedisFeatureStore(
+def _start_embedding_refresh_task(settings: Settings) -> None:
+    feature_store = RedisFeatureStore(
         redis_url=settings.redis_url,
         ttl_seconds=settings.embedding_ttl_seconds,
     )
 
-    async def _start_embedding_refresh():
-        async for _db in _get_db_embed():
+    async def _run_refresh() -> None:
+        async for session in get_db_session():
             await refresh_embeddings_for_all_devices(
-                feature_store=_feature_store,
-                db=_db,
+                feature_store=feature_store,
+                db=session,
                 telemetry_dir=settings.delta_output_dir,
                 recommendations_dir=settings.recommendations_delta_dir,
                 interval_seconds=settings.embedding_ttl_seconds // 2,
@@ -131,25 +109,11 @@ async def lifespan(app: FastAPI):
             )
             break
 
-    import asyncio as _asyncio
-
-    _asyncio.create_task(_start_embedding_refresh())
+    asyncio.create_task(_run_refresh())
     logger.info("embedding_refresh_task_started")
 
-    # Import routers here to avoid circular imports at module load time
-    from src.api.routers import (
-        credit_config,
-        devices,
-        health,
-        ingest,
-        ml_metrics,
-        ml_training,
-        provider_schemas,
-        recommendations,
-        reports,
-        rules,
-    )
 
+def _register_routers(app: FastAPI) -> None:
     app.include_router(ingest.router)
     app.include_router(devices.router)
     app.include_router(recommendations.router)
@@ -161,9 +125,25 @@ async def lifespan(app: FastAPI):
     app.include_router(reports.router)
     app.include_router(rules.router)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    logger.info("starting_up", local_dev=settings.local_dev)
+
+    init_http_client()
+    await _apply_migrations()
+    configure_tracer(settings.otel_service_name)
+    await _seed_default_credit_config()
+    await _seed_prometheus_gauges()
+    _start_mqtt_consumer(settings)
+    _start_embedding_refresh_task(settings)
+    _register_routers(app)
+
     yield
 
-    await _http_client.aclose()
+    await close_http_client()
     logger.info("shutdown_complete")
 
 

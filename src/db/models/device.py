@@ -9,14 +9,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.db.base import Base
 
 
-class DeviceType(str, enum.Enum):
+class DeviceType(enum.StrEnum):
     smartwatch = "smartwatch"
     fitness_tracker = "fitness_tracker"
     smartphone = "smartphone"
     laptop = "laptop"
 
 
-class RewardTier(str, enum.Enum):
+class RewardTier(enum.StrEnum):
     bronze = "bronze"
     silver = "silver"
     gold = "gold"

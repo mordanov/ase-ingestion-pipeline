@@ -1,4 +1,6 @@
-import datetime
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter
@@ -15,6 +17,117 @@ from src.db.models.recommendation import RecommendationRequest
 from src.db.models.telemetry import TelemetryEvent
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+
+
+async def _count_scalar(db: DbSession, statement) -> int:
+    return (await db.execute(statement)).scalar_one()
+
+
+async def _build_device_stats(db: DbSession, cutoff: datetime) -> DeviceStats:
+    total_devices = await _count_scalar(db, select(func.count(Device.id)))
+    active_last_24h = await _count_scalar(
+        db,
+        select(func.count(func.distinct(TelemetryEvent.device_id))).where(
+            TelemetryEvent.received_at >= cutoff
+        ),
+    )
+    tier_rows = (
+        await db.execute(
+            select(Device.reward_tier, func.count(Device.id)).group_by(Device.reward_tier)
+        )
+    ).all()
+    return DeviceStats(
+        total_devices=total_devices,
+        active_last_24h=active_last_24h,
+        tier_distribution=[TierCount(tier=tier.value, count=count) for tier, count in tier_rows],
+    )
+
+
+async def _build_ingestion_stats(db: DbSession, cutoff: datetime) -> IngestionStats:
+    events_last_24h = await _count_scalar(
+        db,
+        select(func.count(TelemetryEvent.id)).where(TelemetryEvent.received_at >= cutoff),
+    )
+    quarantined_last_24h = await _count_scalar(
+        db,
+        select(func.count(QuarantineRecord.id)).where(QuarantineRecord.quarantined_at >= cutoff),
+    )
+    quarantine_rate = round(
+        quarantined_last_24h / max(events_last_24h + quarantined_last_24h, 1) * 100,
+        2,
+    )
+    return IngestionStats(
+        events_last_24h=events_last_24h,
+        quarantined_last_24h=quarantined_last_24h,
+        quarantine_rate_pct=quarantine_rate,
+    )
+
+
+async def _build_recommendation_stats(db: DbSession, cutoff: datetime) -> RecommendationStats:
+    requests_last_24h = await _count_scalar(
+        db,
+        select(func.count(RecommendationRequest.id)).where(
+            RecommendationRequest.requested_at >= cutoff
+        ),
+    )
+    failed_last_24h = await _count_scalar(
+        db,
+        select(func.count(RecommendationRequest.id))
+        .where(RecommendationRequest.requested_at >= cutoff)
+        .where(func.cardinality(RecommendationRequest.providers_succeeded) == 0),
+    )
+    return RecommendationStats(
+        requests_last_24h=requests_last_24h,
+        failed_last_24h=failed_last_24h,
+    )
+
+
+async def _build_ml_stats(db: DbSession) -> MLStats:
+    last_job = (
+        await db.execute(select(TrainingJob).order_by(TrainingJob.started_at.desc()).limit(1))
+    ).scalar_one_or_none()
+    active_models_rows = (
+        (
+            await db.execute(
+                select(TrainedModel).where(
+                    TrainedModel.deployment_status == ModelDeploymentStatus.active
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    active_models = [
+        MLModelInfo(
+            model_type=model.model_type.value,
+            version=model.version,
+            ndcg_at_10=model.ndcg_at_10,
+            f1_score=model.f1_score,
+        )
+        for model in active_models_rows
+    ]
+    return MLStats(
+        last_training_status=last_job.status.value if last_job else None,
+        last_training_at=last_job.started_at.isoformat() if last_job else None,
+        active_models=active_models,
+    )
+
+
+async def _build_anomaly_stats(db: DbSession, cutoff: datetime) -> AnomalyStats:
+    detections_last_24h = await _count_scalar(
+        db,
+        select(func.count(AnomalyReading.id)).where(AnomalyReading.reading_timestamp >= cutoff),
+    )
+    threshold_exceeded_last_24h = await _count_scalar(
+        db,
+        select(func.count(AnomalyReading.id))
+        .where(AnomalyReading.reading_timestamp >= cutoff)
+        .where(AnomalyReading.threshold_exceeded.is_(True)),
+    )
+    return AnomalyStats(
+        detections_last_24h=detections_last_24h,
+        threshold_exceeded_last_24h=threshold_exceeded_last_24h,
+    )
 
 
 class TierCount(BaseModel):
@@ -69,123 +182,21 @@ class SummaryReport(BaseModel):
 @router.get("/summary", response_model=SummaryReport)
 async def get_summary_report(db: DbSession, settings: AppSettings) -> Any:
     """Platform health and compliance summary report."""
-    now = datetime.datetime.now(datetime.UTC)
-    cutoff = now - datetime.timedelta(hours=24)
+    _ = settings  # reserved for future report parameterization
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(hours=24)
 
-    # ── Devices ──────────────────────────────────────────────────────────────
-    total_devices = (await db.execute(select(func.count(Device.id)))).scalar_one()
-
-    active_rows = await db.execute(
-        select(func.count(func.distinct(TelemetryEvent.device_id))).where(
-            TelemetryEvent.received_at >= cutoff
-        )
-    )
-    active_last_24h = active_rows.scalar_one()
-
-    tier_rows = (
-        await db.execute(
-            select(Device.reward_tier, func.count(Device.id)).group_by(Device.reward_tier)
-        )
-    ).all()
-    tier_distribution = [TierCount(tier=t.value, count=c) for t, c in tier_rows]
-
-    # ── Ingestion ─────────────────────────────────────────────────────────────
-    events_24h = (
-        await db.execute(
-            select(func.count(TelemetryEvent.id)).where(TelemetryEvent.received_at >= cutoff)
-        )
-    ).scalar_one()
-
-    quarantined_24h = (
-        await db.execute(
-            select(func.count(QuarantineRecord.id)).where(QuarantineRecord.quarantined_at >= cutoff)
-        )
-    ).scalar_one()
-
-    quarantine_rate = round(quarantined_24h / max(events_24h + quarantined_24h, 1) * 100, 2)
-
-    # ── Recommendations ───────────────────────────────────────────────────────
-    rec_24h = (
-        await db.execute(
-            select(func.count(RecommendationRequest.id)).where(
-                RecommendationRequest.requested_at >= cutoff
-            )
-        )
-    ).scalar_one()
-
-    failed_24h = (
-        await db.execute(
-            select(func.count(RecommendationRequest.id))
-            .where(RecommendationRequest.requested_at >= cutoff)
-            .where(func.cardinality(RecommendationRequest.providers_succeeded) == 0)
-        )
-    ).scalar_one()
-
-    # ── ML ────────────────────────────────────────────────────────────────────
-    last_job = (
-        await db.execute(select(TrainingJob).order_by(TrainingJob.started_at.desc()).limit(1))
-    ).scalar_one_or_none()
-
-    active_models_rows = (
-        (
-            await db.execute(
-                select(TrainedModel).where(
-                    TrainedModel.deployment_status == ModelDeploymentStatus.active
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    active_models = [
-        MLModelInfo(
-            model_type=m.model_type.value,
-            version=m.version,
-            ndcg_at_10=m.ndcg_at_10,
-            f1_score=m.f1_score,
-        )
-        for m in active_models_rows
-    ]
-
-    # ── Anomalies ─────────────────────────────────────────────────────────────
-    detections_24h = (
-        await db.execute(
-            select(func.count(AnomalyReading.id)).where(AnomalyReading.reading_timestamp >= cutoff)
-        )
-    ).scalar_one()
-
-    exceeded_24h = (
-        await db.execute(
-            select(func.count(AnomalyReading.id))
-            .where(AnomalyReading.reading_timestamp >= cutoff)
-            .where(AnomalyReading.threshold_exceeded.is_(True))
-        )
-    ).scalar_one()
+    devices = await _build_device_stats(db, cutoff)
+    ingestion = await _build_ingestion_stats(db, cutoff)
+    recommendations = await _build_recommendation_stats(db, cutoff)
+    ml = await _build_ml_stats(db)
+    anomalies = await _build_anomaly_stats(db, cutoff)
 
     return SummaryReport(
         generated_at=now.isoformat(),
-        devices=DeviceStats(
-            total_devices=total_devices,
-            active_last_24h=active_last_24h,
-            tier_distribution=tier_distribution,
-        ),
-        ingestion=IngestionStats(
-            events_last_24h=events_24h,
-            quarantined_last_24h=quarantined_24h,
-            quarantine_rate_pct=quarantine_rate,
-        ),
-        recommendations=RecommendationStats(
-            requests_last_24h=rec_24h,
-            failed_last_24h=failed_24h,
-        ),
-        ml=MLStats(
-            last_training_status=last_job.status.value if last_job else None,
-            last_training_at=last_job.started_at.isoformat() if last_job else None,
-            active_models=active_models,
-        ),
-        anomalies=AnomalyStats(
-            detections_last_24h=detections_24h,
-            threshold_exceeded_last_24h=exceeded_24h,
-        ),
+        devices=devices,
+        ingestion=ingestion,
+        recommendations=recommendations,
+        ml=ml,
+        anomalies=anomalies,
     )

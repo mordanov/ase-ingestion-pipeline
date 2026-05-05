@@ -9,18 +9,18 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.db.base import Base
 
 
-class SourceProtocol(str, enum.Enum):
+class SourceProtocol(enum.StrEnum):
     http = "http"
     mqtt = "mqtt"
 
 
-class ValidationStatus(str, enum.Enum):
+class ValidationStatus(enum.StrEnum):
     valid = "valid"
     invalid = "invalid"
     stale = "stale"
 
 
-class BatchStatus(str, enum.Enum):
+class BatchStatus(enum.StrEnum):
     pending = "pending"
     processing = "processing"
     completed = "completed"

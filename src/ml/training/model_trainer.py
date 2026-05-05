@@ -1,6 +1,6 @@
-import os
 import struct
 from dataclasses import dataclass
+from pathlib import Path
 
 from src.ml.training.feature_engineer import _EMBEDDING_DIM, DeviceFeatures
 from src.observability.logging import get_logger
@@ -22,8 +22,29 @@ class ModelTrainer:
     """Trains re-ranker and anomaly detector models, saving artifacts to disk as TFLite flatbuffers."""
 
     def __init__(self, artifact_dir: str):
-        self._artifact_dir = artifact_dir
-        os.makedirs(artifact_dir, exist_ok=True)
+        self._artifact_dir = Path(artifact_dir)
+        self._artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    def _artifact_path(self, model_type: str, job_id: str) -> str:
+        return str(self._artifact_dir / f"{model_type}_{job_id}.tflite")
+
+    @staticmethod
+    def _unpack_vectors(device_features: list[DeviceFeatures], dim: int) -> list[list[float]]:
+        return [list(struct.unpack(f"{dim}f", feature.vector)) for feature in device_features]
+
+    @staticmethod
+    def _mean_per_dimension(vectors: list[list[float]], dim: int) -> list[float]:
+        if not vectors:
+            return [0.0] * dim
+        return [sum(vector[i] for vector in vectors) / len(vectors) for i in range(dim)]
+
+    @staticmethod
+    def _std_per_dimension(vectors: list[list[float]], means: list[float], dim: int) -> list[float]:
+        epsilon = 1e-6
+        return [
+            (sum((vector[i] - means[i]) ** 2 for vector in vectors) / len(vectors)) ** 0.5 + epsilon
+            for i in range(dim)
+        ]
 
     def train_reranker(
         self,
@@ -38,13 +59,10 @@ class ModelTrainer:
         logger.info("training_reranker", n_devices=len(device_features))
 
         dim = _EMBEDDING_DIM
-        if device_features:
-            all_vecs = [list(struct.unpack(f"{dim}f", df.vector)) for df in device_features]
-            weights = [sum(v[i] for v in all_vecs) / len(all_vecs) for i in range(dim)]
-        else:
-            weights = [0.0] * dim
+        vectors = self._unpack_vectors(device_features, dim)
+        weights = self._mean_per_dimension(vectors, dim)
 
-        path = os.path.join(self._artifact_dir, f"reranker_{job_id}.tflite")
+        path = self._artifact_path("reranker", job_id)
         _save_reranker_tflite(path, weights, dim)
         logger.info("reranker_artifact_saved", path=path)
 
@@ -69,21 +87,18 @@ class ModelTrainer:
         logger.info("training_anomaly_detector", n_devices=len(device_features))
 
         dim = _ANOMALY_DIM
-        if device_features:
-            all_vecs = [
-                list(struct.unpack(f"{_EMBEDDING_DIM}f", df.vector)) for df in device_features
-            ]
-            means = [
-                sum(v[i] for v in all_vecs) / len(all_vecs) for i in range(min(dim, _EMBEDDING_DIM))
-            ]
-            stds = [
-                (sum((v[i] - means[i]) ** 2 for v in all_vecs) / len(all_vecs)) ** 0.5 + 1e-6
-                for i in range(min(dim, _EMBEDDING_DIM))
-            ]
+        stat_dim = min(dim, _EMBEDDING_DIM)
+        vectors = self._unpack_vectors(device_features, _EMBEDDING_DIM)
+        if vectors:
+            means = self._mean_per_dimension(vectors, stat_dim)
+            stds = self._std_per_dimension(vectors, means, stat_dim)
         else:
-            stds = [1.0] * dim
+            stds = [1.0] * stat_dim
 
-        path = os.path.join(self._artifact_dir, f"anomaly_detector_{job_id}.tflite")
+        if stat_dim < dim:
+            stds.extend([1.0] * (dim - stat_dim))
+
+        path = self._artifact_path("anomaly_detector", job_id)
         _save_anomaly_tflite(path, stds, dim)
         logger.info("anomaly_detector_artifact_saved", path=path)
 

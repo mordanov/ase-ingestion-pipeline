@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class SourceProtocol(str, Enum):
+class SourceProtocol(StrEnum):
     HTTP = "http"
     MQTT = "mqtt"
 
