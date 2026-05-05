@@ -1,8 +1,8 @@
 """Integration tests for anomaly-suppressed recommendations — T021."""
+
 import uuid
+
 import pytest
-import pytest_asyncio
-from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.integration
@@ -62,7 +62,9 @@ async def test_at_least_one_recommendation_always_returned(db_session: AsyncSess
     )
     if resp.status_code == 200:
         data = resp.json()
-        assert len(data["recommendations"]) >= 1, "Response must contain at least one recommendation"
+        assert len(data["recommendations"]) >= 1, (
+            "Response must contain at least one recommendation"
+        )
 
 
 @pytest.mark.asyncio
@@ -88,5 +90,7 @@ async def test_cold_start_device_no_anomaly_flag(db_session: AsyncSession, async
     if resp.status_code == 200:
         data = resp.json()
         # No baseline → anomaly suppression should not activate; all items unsuppressed
-        suppressed_count = sum(1 for item in data["recommendations"] if item.get("anomaly_suppressed"))
+        suppressed_count = sum(
+            1 for item in data["recommendations"] if item.get("anomaly_suppressed")
+        )
         assert suppressed_count == 0, "Cold-start device should have no suppressed recommendations"

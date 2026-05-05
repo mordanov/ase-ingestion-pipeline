@@ -1,10 +1,8 @@
 import math
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from opentelemetry import trace
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.ml_anomaly_reading import AnomalyReading
@@ -35,6 +33,7 @@ class ZScoreAnomalyDetector(AnomalyDetector):
         Returns AnomalyResult with has_baseline=False when device has insufficient history (FR-008).
         """
         import time as _time
+
         start = _time.monotonic()
         with _tracer.start_as_current_span("ml.anomaly_detector.detect") as span:
             span.set_attribute("device_id", device_id)
@@ -42,12 +41,16 @@ class ZScoreAnomalyDetector(AnomalyDetector):
 
             if baseline_days < self._min_baseline_days:
                 span.set_attribute("outcome", "no_baseline")
-                return AnomalyResult(anomaly_score=0.0, threshold_exceeded=False, has_baseline=False)
+                return AnomalyResult(
+                    anomaly_score=0.0, threshold_exceeded=False, has_baseline=False
+                )
 
             stats = await self._compute_baseline_stats(device_id)
             if not stats:
                 span.set_attribute("outcome", "insufficient_history")
-                return AnomalyResult(anomaly_score=0.0, threshold_exceeded=False, has_baseline=False)
+                return AnomalyResult(
+                    anomaly_score=0.0, threshold_exceeded=False, has_baseline=False
+                )
 
             score = self._compute_zscore(reading, stats)
             exceeded = score > self._threshold
@@ -65,9 +68,11 @@ class ZScoreAnomalyDetector(AnomalyDetector):
                 threshold_exceeded=exceeded,
                 duration_ms=round(elapsed_ms, 2),
             )
-            return AnomalyResult(anomaly_score=score, threshold_exceeded=exceeded, has_baseline=True)
+            return AnomalyResult(
+                anomaly_score=score, threshold_exceeded=exceeded, has_baseline=True
+            )
 
-    async def _compute_baseline_stats(self, device_id: str) -> Optional[dict]:
+    async def _compute_baseline_stats(self, device_id: str) -> dict | None:
         """Load per-feature mean/std from recent AnomalyReading history."""
         result = await self._db.execute(
             select(AnomalyReading)
@@ -109,11 +114,13 @@ class ZScoreAnomalyDetector(AnomalyDetector):
     async def _persist_reading(
         self, device_id: str, reading: dict, score: float, exceeded: bool
     ) -> None:
-        evaluated = {k: reading.get(k) for k in ("heart_rate", "steps", "sleep_duration") if k in reading}
+        evaluated = {
+            k: reading.get(k) for k in ("heart_rate", "steps", "sleep_duration") if k in reading
+        }
         record = AnomalyReading(
             id=uuid.uuid4(),
             device_id=device_id,
-            reading_timestamp=datetime.now(timezone.utc),
+            reading_timestamp=datetime.now(UTC),
             anomaly_score=score,
             threshold_exceeded=exceeded,
             evaluated_fields=evaluated,

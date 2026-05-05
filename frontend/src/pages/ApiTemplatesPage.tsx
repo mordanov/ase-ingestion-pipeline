@@ -18,7 +18,9 @@ type ParsedField = { path: string; type: string; required: boolean; description:
 function extractFields(schema: Record<string, unknown>, prefix = ''): ParsedField[] {
   const required = new Set((schema.required as string[]) ?? [])
   const fields: ParsedField[] = []
-  for (const [name, raw] of Object.entries((schema.properties ?? {}) as Record<string, Record<string, unknown>>)) {
+  for (const [name, raw] of Object.entries(
+    (schema.properties ?? {}) as Record<string, Record<string, unknown>>,
+  )) {
     const path = prefix ? `${prefix}.${name}` : name
     if (raw.type === 'object' || raw.properties) {
       fields.push(...extractFields(raw, path))
@@ -43,17 +45,17 @@ const TIMESTAMP_TERMS = ['birth_date', 'birthdate', 'dob', 'born']
 function suggestExpr(field: ParsedField): string {
   const name = field.path.split('.').pop()!.toLowerCase()
   const desc = field.description.toLowerCase()
-  if (HEIGHT_TERMS.some(t => name.includes(t) || desc.includes(t))) {
-    if (['feet', 'foot', 'ft'].some(h => desc.includes(h))) return '$HEIGHT_FT'
+  if (HEIGHT_TERMS.some((t) => name.includes(t) || desc.includes(t))) {
+    if (['feet', 'foot', 'ft'].some((h) => desc.includes(h))) return '$HEIGHT_FT'
     return '$HEIGHT'
   }
-  if (WEIGHT_TERMS.some(t => name.includes(t) || desc.includes(t))) {
-    if (['pound', 'lbs', 'lb'].some(h => desc.includes(h))) return '$WEIGHT_LBS'
+  if (WEIGHT_TERMS.some((t) => name.includes(t) || desc.includes(t))) {
+    if (['pound', 'lbs', 'lb'].some((h) => desc.includes(h))) return '$WEIGHT_LBS'
     return '$WEIGHT'
   }
-  if (UUID_TERMS.some(t => name === t)) return '$UUID'
-  if (TIMESTAMP_TERMS.some(t => name === t) && field.type === 'integer') return '$BIRTHDATE'
-  if (TOKEN_TERMS.some(t => name === t)) return '$CONST:'
+  if (UUID_TERMS.some((t) => name === t)) return '$UUID'
+  if (TIMESTAMP_TERMS.some((t) => name === t) && field.type === 'integer') return '$BIRTHDATE'
+  if (TOKEN_TERMS.some((t) => name === t)) return '$CONST:'
   return '$CONST:'
 }
 
@@ -77,16 +79,22 @@ function BuiltinCard({ title, input, output }: { title: string; input: string; o
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
         <span className="font-semibold text-slate-700 text-sm">{title}</span>
-        <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded">built-in · read-only</span>
+        <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded">
+          built-in · read-only
+        </span>
       </div>
       <div className="grid grid-cols-2 divide-x divide-slate-100 text-xs">
         <div className="p-3">
           <p className="font-medium text-slate-400 uppercase tracking-wide mb-1.5">Request</p>
-          <pre className="text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">{input}</pre>
+          <pre className="text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+            {input}
+          </pre>
         </div>
         <div className="p-3">
           <p className="font-medium text-slate-400 uppercase tracking-wide mb-1.5">Response</p>
-          <pre className="text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">{output}</pre>
+          <pre className="text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+            {output}
+          </pre>
         </div>
       </div>
     </div>
@@ -165,8 +173,7 @@ function ResponseMappingEditor({
   value: ResponseMapping
   onChange: (r: ResponseMapping) => void
 }) {
-  const set = (key: keyof ResponseMapping, v: string | number) =>
-    onChange({ ...value, [key]: v })
+  const set = (key: keyof ResponseMapping, v: string | number) => onChange({ ...value, [key]: v })
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -183,7 +190,9 @@ function ResponseMappingEditor({
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Detail field <span className="font-normal text-slate-400">(optional)</span></label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">
+          Detail field <span className="font-normal text-slate-400">(optional)</span>
+        </label>
         <input
           value={value.detail_field}
           onChange={(e) => set('detail_field', e.target.value)}
@@ -192,7 +201,9 @@ function ResponseMappingEditor({
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Text field <span className="text-red-400">*</span></label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">
+          Text field <span className="text-red-400">*</span>
+        </label>
         <input
           value={value.text_field}
           onChange={(e) => set('text_field', e.target.value)}
@@ -201,7 +212,9 @@ function ResponseMappingEditor({
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Score field <span className="text-red-400">*</span></label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">
+          Score field <span className="text-red-400">*</span>
+        </label>
         <input
           value={value.score_field}
           onChange={(e) => set('score_field', e.target.value)}
@@ -212,7 +225,9 @@ function ResponseMappingEditor({
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">
           Score multiplier
-          <span className="ml-1 font-normal text-slate-400">(1000 for 0–1 confidence, 1 for 0–1000 priority)</span>
+          <span className="ml-1 font-normal text-slate-400">
+            (1000 for 0–1 confidence, 1 for 0–1000 priority)
+          </span>
         </label>
         <input
           type="number"
@@ -254,17 +269,20 @@ function ProviderForm({
   const [parseError, setParseError] = useState<string | null>(null)
   const [parsedFields, setParsedFields] = useState<ParsedField[] | null>(
     initial
-      ? Object.keys(initial.request_mapping?.fields ?? {}).map(path => ({
-          path, type: '', required: false, description: '',
+      ? Object.keys(initial.request_mapping?.fields ?? {}).map((path) => ({
+          path,
+          type: '',
+          required: false,
+          description: '',
         }))
-      : null
+      : null,
   )
 
   const [requestMapping, setRequestMapping] = useState<RequestMapping>(
-    initial?.request_mapping ?? { fields: {} }
+    initial?.request_mapping ?? { fields: {} },
   )
   const [responseMapping, setResponseMapping] = useState<ResponseMapping>(
-    initial?.response_mapping ?? EMPTY_RESPONSE_MAPPING
+    initial?.response_mapping ?? EMPTY_RESPONSE_MAPPING,
   )
 
   const handleParseSchema = () => {
@@ -282,14 +300,17 @@ function ProviderForm({
       return
     }
     setParsedFields(fields)
-    setRequestMapping({ fields: Object.fromEntries(fields.map(f => [f.path, suggestExpr(f)])) })
+    setRequestMapping({ fields: Object.fromEntries(fields.map((f) => [f.path, suggestExpr(f)])) })
   }
 
   const updateField = (path: string, expr: string) =>
-    setRequestMapping(rm => ({ fields: { ...rm.fields, [path]: expr } }))
+    setRequestMapping((rm) => ({ fields: { ...rm.fields, [path]: expr } }))
 
-  const canSave = name.trim() && endpointUrl.trim() &&
-    responseMapping.text_field.trim() && responseMapping.score_field.trim()
+  const canSave =
+    name.trim() &&
+    endpointUrl.trim() &&
+    responseMapping.text_field.trim() &&
+    responseMapping.score_field.trim()
 
   const handleSave = () => {
     onSave({
@@ -306,7 +327,9 @@ function ProviderForm({
       {/* Name + active */}
       <div className="flex gap-3 items-end">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Provider name <span className="text-red-400">*</span></label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Provider name <span className="text-red-400">*</span>
+          </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -315,14 +338,21 @@ function ProviderForm({
           />
         </div>
         <label className="flex items-center gap-1.5 text-sm text-slate-600 pb-1.5">
-          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded" />
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="rounded"
+          />
           Active
         </label>
       </div>
 
       {/* Endpoint URL */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Endpoint URL <span className="text-red-400">*</span></label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">
+          Endpoint URL <span className="text-red-400">*</span>
+        </label>
         <input
           value={endpointUrl}
           onChange={(e) => setEndpointUrl(e.target.value)}
@@ -343,7 +373,9 @@ function ProviderForm({
           value={schemaText}
           onChange={(e) => setSchemaText(e.target.value)}
           rows={6}
-          placeholder={'{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "type": "object",\n  "properties": { … }\n}'}
+          placeholder={
+            '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "type": "object",\n  "properties": { … }\n}'
+          }
           className="w-full px-3 py-2 border border-slate-300 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 resize-y"
         />
         <div className="flex items-center gap-3">
@@ -366,14 +398,18 @@ function ProviderForm({
       {/* Request field mappings */}
       {parsedFields && parsedFields.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Request field mappings</p>
+          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+            Request field mappings
+          </p>
           <ExpressionRef />
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-3 py-2 text-left text-slate-500 font-medium">Field</th>
-                  <th className="px-3 py-2 text-left text-slate-500 font-medium">Value expression</th>
+                  <th className="px-3 py-2 text-left text-slate-500 font-medium">
+                    Value expression
+                  </th>
                 </tr>
               </thead>
               <tbody className="px-3">
@@ -395,7 +431,9 @@ function ProviderForm({
       <div>
         <p className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wide">
           Response mapping
-          <span className="ml-2 font-normal normal-case text-slate-400">how to extract recommendations from the response</span>
+          <span className="ml-2 font-normal normal-case text-slate-400">
+            how to extract recommendations from the response
+          </span>
         </p>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <ResponseMappingEditor value={responseMapping} onChange={setResponseMapping} />
@@ -424,13 +462,7 @@ function ProviderForm({
 
 // ── Provider card (list item) ─────────────────────────────────────────────────
 
-function ProviderCard({
-  provider,
-  onEdit,
-}: {
-  provider: ProviderSchema
-  onEdit: () => void
-}) {
+function ProviderCard({ provider, onEdit }: { provider: ProviderSchema; onEdit: () => void }) {
   const qc = useQueryClient()
   const del = useMutation({
     mutationFn: () => deleteProviderSchema(provider.id),
@@ -440,13 +472,17 @@ function ProviderCard({
   const fieldCount = Object.keys(provider.request_mapping?.fields ?? {}).length
 
   return (
-    <div className={`rounded-xl border bg-white shadow-sm p-4 ${!provider.is_active ? 'opacity-60' : ''}`}>
+    <div
+      className={`rounded-xl border bg-white shadow-sm p-4 ${!provider.is_active ? 'opacity-60' : ''}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-slate-700">{provider.name}</span>
             {!provider.is_active && (
-              <span className="text-xs bg-slate-100 text-slate-400 px-2 py-0.5 rounded">inactive</span>
+              <span className="text-xs bg-slate-100 text-slate-400 px-2 py-0.5 rounded">
+                inactive
+              </span>
             )}
             <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded">
               {fieldCount} field{fieldCount !== 1 ? 's' : ''} mapped
@@ -455,15 +491,23 @@ function ProviderCard({
           <p className="text-xs font-mono text-slate-400 truncate">{provider.endpoint_url}</p>
           {provider.response_mapping?.text_field && (
             <p className="text-xs text-slate-400">
-              Response: <code className="bg-slate-100 px-1 rounded">{provider.response_mapping.text_field}</code>
-              {' '}+{' '}
-              <code className="bg-slate-100 px-1 rounded">{provider.response_mapping.score_field}</code>
-              {' '}×{provider.response_mapping.score_multiplier}
+              Response:{' '}
+              <code className="bg-slate-100 px-1 rounded">
+                {provider.response_mapping.text_field}
+              </code>{' '}
+              +{' '}
+              <code className="bg-slate-100 px-1 rounded">
+                {provider.response_mapping.score_field}
+              </code>{' '}
+              ×{provider.response_mapping.score_multiplier}
             </p>
           )}
           {fieldCount > 0 && (
             <p className="text-xs text-slate-400 font-mono">
-              {Object.entries(provider.request_mapping.fields).slice(0, 3).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+              {Object.entries(provider.request_mapping.fields)
+                .slice(0, 3)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(' · ')}
               {fieldCount > 3 && ' …'}
             </p>
           )}
@@ -532,8 +576,9 @@ export function ApiTemplatesPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-800">API Templates</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Add custom recommendation providers by pasting their request JSON Schema. Field values are mapped
-          using expressions: <code className="bg-slate-100 px-1 rounded text-xs">$HEIGHT</code>,{' '}
+          Add custom recommendation providers by pasting their request JSON Schema. Field values are
+          mapped using expressions:{' '}
+          <code className="bg-slate-100 px-1 rounded text-xs">$HEIGHT</code>,{' '}
           <code className="bg-slate-100 px-1 rounded text-xs">$WEIGHT</code>,{' '}
           <code className="bg-slate-100 px-1 rounded text-xs">$UUID</code>,{' '}
           <code className="bg-slate-100 px-1 rounded text-xs">$CONST:value</code>.
@@ -541,22 +586,36 @@ export function ApiTemplatesPage() {
       </div>
 
       {toast && (
-        <div className={`px-4 py-2 rounded border text-sm ${toast.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+        <div
+          className={`px-4 py-2 rounded border text-sm ${toast.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}
+        >
           {toast.msg}
         </div>
       )}
 
       {/* Built-in providers */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Built-in providers</h2>
-        <BuiltinCard title="Service 1 — confidence list" input={SERVICE1_INPUT} output={SERVICE1_OUTPUT} />
-        <BuiltinCard title="Service 2 — priority object" input={SERVICE2_INPUT} output={SERVICE2_OUTPUT} />
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+          Built-in providers
+        </h2>
+        <BuiltinCard
+          title="Service 1 — confidence list"
+          input={SERVICE1_INPUT}
+          output={SERVICE1_OUTPUT}
+        />
+        <BuiltinCard
+          title="Service 2 — priority object"
+          input={SERVICE2_INPUT}
+          output={SERVICE2_OUTPUT}
+        />
       </section>
 
       {/* Custom providers */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Custom providers</h2>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+            Custom providers
+          </h2>
           {!showAdd && !editingId && (
             <button
               onClick={() => setShowAdd(true)}
@@ -590,13 +649,18 @@ export function ApiTemplatesPage() {
             <ProviderCard
               key={p.id}
               provider={p}
-              onEdit={() => { setShowAdd(false); setEditingId(p.id) }}
+              onEdit={() => {
+                setShowAdd(false)
+                setEditingId(p.id)
+              }}
             />
-          )
+          ),
         )}
 
         {!isLoading && providers?.length === 0 && !showAdd && (
-          <p className="text-slate-400 text-sm">No custom providers yet. Click "+ Add provider" to add one.</p>
+          <p className="text-slate-400 text-sm">
+            No custom providers yet. Click "+ Add provider" to add one.
+          </p>
         )}
       </section>
     </div>

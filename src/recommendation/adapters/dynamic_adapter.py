@@ -50,6 +50,7 @@ def _resolve_expr(expr: str, height_cm: float, weight_kg: float) -> Any:
         return str(_uuid_mod.uuid4())
     if expr == "$BIRTHDATE":
         import time as _time
+
         return int(_time.time())
     if expr.startswith("$CONST:"):
         raw = expr[7:]
@@ -172,20 +173,30 @@ class DynamicAdapter(ProviderAdapter):
 
             if resp.status_code != 200:
                 return ProviderResult(
-                    provider_id=self.provider_id, recommendations=[],
-                    duration_ms=duration_ms, error=f"HTTP {resp.status_code}",
+                    provider_id=self.provider_id,
+                    recommendations=[],
+                    duration_ms=duration_ms,
+                    error=f"HTTP {resp.status_code}",
                 )
 
             resp_body = resp.json()
             if isinstance(resp_body, dict) and "body" in resp_body and "statusCode" in resp_body:
                 import json as _json
+
                 raw = resp_body["body"]
                 resp_body = _json.loads(raw) if isinstance(raw, str) else raw
 
             recs = self._parse_response(resp_body)
-            return ProviderResult(provider_id=self.provider_id, recommendations=recs, duration_ms=duration_ms)
+            return ProviderResult(
+                provider_id=self.provider_id, recommendations=recs, duration_ms=duration_ms
+            )
 
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
             logger.error("dynamic_adapter_error", provider=self.provider_id, error=str(exc))
-            return ProviderResult(provider_id=self.provider_id, recommendations=[], duration_ms=duration_ms, error=str(exc))
+            return ProviderResult(
+                provider_id=self.provider_id,
+                recommendations=[],
+                duration_ms=duration_ms,
+                error=str(exc),
+            )

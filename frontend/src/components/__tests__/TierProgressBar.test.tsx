@@ -10,7 +10,7 @@ describe('TierProgressBar', () => {
         nextTier="silver"
         creditsToNextTier={500}
         nextTierThreshold={1000}
-      />
+      />,
     )
     expect(screen.getByText(/500 credits to Silver/i)).toBeTruthy()
   })
@@ -22,7 +22,7 @@ describe('TierProgressBar', () => {
         nextTier="silver"
         creditsToNextTier={500}
         nextTierThreshold={1000}
-      />
+      />,
     )
     const progressBar = container.querySelector('[role="progressbar"]') as HTMLElement
     expect(progressBar).toBeTruthy()
@@ -37,7 +37,7 @@ describe('TierProgressBar', () => {
         nextTier="platinum"
         creditsToNextTier={0}
         nextTierThreshold={20000}
-      />
+      />,
     )
     expect(screen.getByText(/MAX TIER/i)).toBeTruthy()
   })
@@ -49,7 +49,7 @@ describe('TierProgressBar', () => {
         nextTier="gold"
         creditsToNextTier={100}
         nextTierThreshold={5000}
-      />
+      />,
     )
     const progressBar = container.querySelector('[role="progressbar"]') as HTMLElement
     expect(progressBar).toBeTruthy()

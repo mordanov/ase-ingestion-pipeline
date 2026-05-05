@@ -1,10 +1,12 @@
 """Unit tests for src/recommendation/normalizer.py"""
-import pytest
 
+import pytest
 from src.recommendation.interfaces import RawRecommendation
 
 
-def _raw(short_text: str, score: float, provider: str, detail: str | None = None) -> RawRecommendation:
+def _raw(
+    short_text: str, score: float, provider: str, detail: str | None = None
+) -> RawRecommendation:
     return RawRecommendation(
         short_text=short_text,
         detail=detail,

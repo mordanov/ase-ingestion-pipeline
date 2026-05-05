@@ -55,8 +55,7 @@ export interface PackageMeta {
   size_bytes: number | null
 }
 
-export const getLatestPackage = () =>
-  apiFetch<PackageMeta>('/admin/ml/model-package/latest')
+export const getLatestPackage = () => apiFetch<PackageMeta>('/admin/ml/model-package/latest')
 
 export const getDevice = (deviceId: string) =>
   apiFetch<{ device_id: string }>(`/api/v1/devices/${encodeURIComponent(deviceId)}`)

@@ -59,7 +59,9 @@ def compact_dir(leaf: Path, dry_run: bool) -> tuple[int, int, int]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compact Parquet partitions")
     parser.add_argument("--base-dir", default="./data/parquet", help="Root of the Parquet archive")
-    parser.add_argument("--dry-run", action="store_true", help="Report what would be done without writing")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Report what would be done without writing"
+    )
     args = parser.parse_args()
 
     base = Path(args.base_dir)
@@ -79,7 +81,9 @@ def main() -> None:
             continue
         rel = leaf.relative_to(base)
         tag = "[dry-run] " if args.dry_run else ""
-        print(f"{tag}{rel}: merged {files_merged} files → {rows:,} rows, saved {saved / 1024:.1f} KB")
+        print(
+            f"{tag}{rel}: merged {files_merged} files → {rows:,} rows, saved {saved / 1024:.1f} KB"
+        )
         total_files += files_merged
         total_rows += rows
         total_saved += saved
@@ -88,7 +92,9 @@ def main() -> None:
         print("Nothing to compact — all partitions already have a single file.")
     else:
         tag = "[dry-run] " if args.dry_run else ""
-        print(f"\n{tag}Done: {total_files} files → {total_rows:,} rows, {total_saved / 1024:.1f} KB reclaimed")
+        print(
+            f"\n{tag}Done: {total_files} files → {total_rows:,} rows, {total_saved / 1024:.1f} KB reclaimed"
+        )
 
 
 if __name__ == "__main__":

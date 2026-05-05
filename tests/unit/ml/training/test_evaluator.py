@@ -1,6 +1,6 @@
 """Unit tests for Evaluator — T033 (must FAIL before implementation)."""
-import pytest
 
+import pytest
 from src.ml.training.evaluator import Evaluator
 
 

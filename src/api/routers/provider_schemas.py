@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -12,6 +12,7 @@ from src.db.models.provider_schema import ProviderSchema
 router = APIRouter(prefix="/api/v1/provider-schemas", tags=["provider-schemas"])
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
+
 
 class ResponseMapping(BaseModel):
     array_path: str = ""
@@ -53,6 +54,7 @@ class UpdateProviderSchemaRequest(BaseModel):
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+
 def _to_response(p: ProviderSchema) -> ProviderSchemaResponse:
     return ProviderSchemaResponse(
         id=str(p.id),
@@ -75,13 +77,13 @@ async def list_provider_schemas(db: DbSession) -> Any:
 
 @router.post("", response_model=ProviderSchemaResponse, status_code=201)
 async def create_provider_schema(body: CreateProviderSchemaRequest, db: DbSession) -> Any:
-    existing = (await db.execute(
-        select(ProviderSchema).where(ProviderSchema.name == body.name)
-    )).scalar_one_or_none()
+    existing = (
+        await db.execute(select(ProviderSchema).where(ProviderSchema.name == body.name))
+    ).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail=f"Provider {body.name!r} already exists")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     p = ProviderSchema(
         id=uuid.uuid4(),
         name=body.name,
@@ -101,15 +103,17 @@ async def create_provider_schema(body: CreateProviderSchemaRequest, db: DbSessio
 
 
 @router.put("/{schema_id}", response_model=ProviderSchemaResponse)
-async def update_provider_schema(schema_id: str, body: UpdateProviderSchemaRequest, db: DbSession) -> Any:
+async def update_provider_schema(
+    schema_id: str, body: UpdateProviderSchemaRequest, db: DbSession
+) -> Any:
     try:
         uid = uuid.UUID(schema_id)
     except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid schema_id")
+        raise HTTPException(status_code=422, detail="Invalid schema_id") from None
 
-    p = (await db.execute(
-        select(ProviderSchema).where(ProviderSchema.id == uid)
-    )).scalar_one_or_none()
+    p = (
+        await db.execute(select(ProviderSchema).where(ProviderSchema.id == uid))
+    ).scalar_one_or_none()
     if p is None:
         raise HTTPException(status_code=404, detail="Provider schema not found")
 
@@ -125,7 +129,7 @@ async def update_provider_schema(schema_id: str, body: UpdateProviderSchemaReque
         p.response_mapping = body.response_mapping
     if body.is_active is not None:
         p.is_active = body.is_active
-    p.updated_at = datetime.now(timezone.utc)
+    p.updated_at = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(p)
@@ -137,11 +141,11 @@ async def delete_provider_schema(schema_id: str, db: DbSession) -> None:
     try:
         uid = uuid.UUID(schema_id)
     except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid schema_id")
+        raise HTTPException(status_code=422, detail="Invalid schema_id") from None
 
-    p = (await db.execute(
-        select(ProviderSchema).where(ProviderSchema.id == uid)
-    )).scalar_one_or_none()
+    p = (
+        await db.execute(select(ProviderSchema).where(ProviderSchema.id == uid))
+    ).scalar_one_or_none()
     if p is None:
         raise HTTPException(status_code=404, detail="Provider schema not found")
 

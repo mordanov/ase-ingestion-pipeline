@@ -1,15 +1,13 @@
 """Unit tests for Distributor — T026 (must FAIL before implementation)."""
+
 import json
 import os
 import struct
 import tempfile
-import uuid
 import zipfile
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from src.db.models.ml_trained_model import ModelDeploymentStatus, ModelType, TrainedModel
 from src.ml.distributor import Distributor
 

@@ -1,9 +1,9 @@
 """Unit tests for TFLiteReranker — T014 (must FAIL before implementation)."""
+
 import struct
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
-
 from src.ml.interfaces import UserEmbedding
 from src.ml.reranker import TFLiteReranker
 from src.recommendation.normalizer import AggregatedRecommendation
@@ -11,7 +11,9 @@ from src.recommendation.normalizer import AggregatedRecommendation
 
 def _make_items(n: int = 3) -> list[AggregatedRecommendation]:
     return [
-        AggregatedRecommendation(short_text=f"tip {i}", max_score=float(100 - i * 10), providers=["s1"])
+        AggregatedRecommendation(
+            short_text=f"tip {i}", max_score=float(100 - i * 10), providers=["s1"]
+        )
         for i in range(n)
     ]
 
@@ -19,7 +21,10 @@ def _make_items(n: int = 3) -> list[AggregatedRecommendation]:
 def _make_embedding(device_id: str, dim: int = 8, version: int = 1) -> UserEmbedding:
     vec = struct.pack(f"{dim}f", *[0.1 * i for i in range(dim)])
     import time
-    return UserEmbedding(device_id=device_id, vector=vec, model_version=version, computed_at=time.time())
+
+    return UserEmbedding(
+        device_id=device_id, vector=vec, model_version=version, computed_at=time.time()
+    )
 
 
 @pytest.fixture

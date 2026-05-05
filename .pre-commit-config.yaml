@@ -1,0 +1,29 @@
+repos:
+  # ── Backend ──────────────────────────────────────────────────────────────────
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.10
+    hooks:
+      - id: ruff-format           # formatting (replaces black)
+        types_or: [python]
+      - id: ruff                  # linting + import sorting
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python]
+
+  # ── Frontend ─────────────────────────────────────────────────────────────────
+
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (frontend)
+        language: system
+        entry: npm --prefix frontend run format:check
+        pass_filenames: false
+        files: ^frontend/src/.*\.(ts|tsx|css|json)$
+
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: npm --prefix frontend run lint
+        pass_filenames: false
+        files: ^frontend/src/.*\.(ts|tsx)$

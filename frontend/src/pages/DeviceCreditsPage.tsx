@@ -28,7 +28,8 @@ function MeasurementsTable({ deviceId }: { deviceId: string }) {
   })
 
   if (isLoading) return <p className="text-slate-400 text-sm">Loading measurements…</p>
-  if (!data?.items.length) return <p className="text-slate-400 text-sm">No measurements recorded yet.</p>
+  if (!data?.items.length)
+    return <p className="text-slate-400 text-sm">No measurements recorded yet.</p>
 
   const totalPages = Math.ceil(data.total / limit)
   const page = Math.floor(offset / limit) + 1
@@ -62,7 +63,9 @@ function MeasurementsTable({ deviceId }: { deviceId: string }) {
                   {ev.spo2_pct != null ? ev.spo2_pct.toFixed(1) : '—'}
                 </td>
                 <td className="px-3 py-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CLASSES[ev.validation_status] ?? ''}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CLASSES[ev.validation_status] ?? ''}`}
+                  >
                     {ev.is_anomaly ? '⚠ anomaly' : ev.validation_status}
                   </span>
                 </td>
@@ -73,7 +76,9 @@ function MeasurementsTable({ deviceId }: { deviceId: string }) {
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>Page {page} of {totalPages} ({data.total} total)</span>
+          <span>
+            Page {page} of {totalPages} ({data.total} total)
+          </span>
           <div className="flex gap-2">
             <button
               disabled={offset === 0}
@@ -136,12 +141,8 @@ export function DeviceCreditsPage() {
       </form>
 
       {isLoading && <p className="text-slate-400 text-sm">Loading…</p>}
-      {notFound && (
-        <p className="text-red-500 text-sm">Device not found: {deviceId}</p>
-      )}
-      {isError && !notFound && (
-        <p className="text-red-500 text-sm">Failed to load device data.</p>
-      )}
+      {notFound && <p className="text-red-500 text-sm">Device not found: {deviceId}</p>}
+      {isError && !notFound && <p className="text-red-500 text-sm">Failed to load device data.</p>}
 
       {data && (
         <div className="space-y-4">
@@ -157,7 +158,9 @@ export function DeviceCreditsPage() {
                 <p className="text-xs text-slate-500">Balance</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-green-600">{data.cumulative_credits_earned}</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {data.cumulative_credits_earned}
+                </p>
                 <p className="text-xs text-slate-500">Earned</p>
               </div>
               <div>
@@ -169,12 +172,11 @@ export function DeviceCreditsPage() {
               cumulativeEarned={data.cumulative_credits_earned}
               nextTier={data.next_tier}
               creditsToNextTier={data.credits_to_next_tier}
-              nextTierThreshold={
-                (data.credits_to_next_tier ?? 0) + data.cumulative_credits_earned
-              }
+              nextTierThreshold={(data.credits_to_next_tier ?? 0) + data.cumulative_credits_earned}
             />
             <p className="text-xs text-slate-400">
-              Multiplier: {data.tier_multiplier}× | Discount: {(data.tier_discount * 100).toFixed(0)}%
+              Multiplier: {data.tier_multiplier}× | Discount:{' '}
+              {(data.tier_discount * 100).toFixed(0)}%
             </p>
           </div>
 

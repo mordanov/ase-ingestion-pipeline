@@ -1,17 +1,13 @@
 """Integration tests for device credit detail endpoints (T028)."""
-import uuid
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
-
-from src.db.models.credits import CreditTransaction, CreditActionType
+from src.db.models.credits import CreditActionType, CreditTransaction
 
 
 @pytest.mark.asyncio
-async def test_get_device_credits_returns_expected_fields(
-    async_client: AsyncClient, seeded_device
-):
+async def test_get_device_credits_returns_expected_fields(async_client: AsyncClient, seeded_device):
     resp = await async_client.get(
         f"/api/v1/devices/{seeded_device.device_id}/credits",
         headers={"X-API-Key": "test-key"},
@@ -54,9 +50,7 @@ async def test_get_device_transactions_returns_paginated_list(
 
 
 @pytest.mark.asyncio
-async def test_get_device_transactions_pagination_params(
-    async_client: AsyncClient, seeded_device
-):
+async def test_get_device_transactions_pagination_params(async_client: AsyncClient, seeded_device):
     resp = await async_client.get(
         f"/api/v1/devices/{seeded_device.device_id}/credits/transactions?limit=10&offset=0",
         headers={"X-API-Key": "test-key"},

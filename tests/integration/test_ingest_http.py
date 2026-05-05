@@ -1,9 +1,9 @@
 """Integration tests for POST /ingest endpoint (T017)."""
+
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 
 from tests.conftest import make_telemetry_event
@@ -27,7 +27,7 @@ async def test_ingest_batch_accepted(async_client: AsyncClient, seeded_device):
     events = [make_telemetry_event(seeded_device.device_id) for _ in range(3)]
     batch = {
         "batch_id": str(uuid.uuid4()),
-        "sent_at": datetime.now(timezone.utc).isoformat(),
+        "sent_at": datetime.now(UTC).isoformat(),
         "event_count": 3,
         "events": events,
     }
@@ -81,7 +81,6 @@ async def test_ingest_duplicate_event_id_not_quarantined(async_client: AsyncClie
 @pytest.mark.asyncio
 async def test_ingest_event_persisted_in_db(async_client: AsyncClient, seeded_device, db_session):
     from sqlalchemy import select
-
     from src.db.models import TelemetryEvent
 
     payload = make_telemetry_event(seeded_device.device_id)
@@ -90,7 +89,9 @@ async def test_ingest_event_persisted_in_db(async_client: AsyncClient, seeded_de
     resp = await async_client.post("/ingest", json=payload)
     assert resp.status_code == 202
 
-    result = await db_session.execute(select(TelemetryEvent).where(TelemetryEvent.event_id == event_id))
+    result = await db_session.execute(
+        select(TelemetryEvent).where(TelemetryEvent.event_id == event_id)
+    )
     event = result.scalar_one_or_none()
     assert event is not None
     assert event.device_id == seeded_device.device_id

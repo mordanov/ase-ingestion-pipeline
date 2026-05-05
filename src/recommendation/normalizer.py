@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.recommendation.interfaces import RawRecommendation
 
@@ -12,7 +12,9 @@ class AggregatedRecommendation:
     detail: str | None = None
 
 
-def normalize_score(provider_id: str, *, confidence: float | None = None, priority: int | None = None) -> float:
+def normalize_score(
+    provider_id: str, *, confidence: float | None = None, priority: int | None = None
+) -> float:
     """Convert a provider-specific raw score to a normalised 0–1000 float."""
     if provider_id == "service1":
         if confidence is None:

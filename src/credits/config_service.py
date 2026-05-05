@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,8 +61,12 @@ class ConfigService:
             version=last_version + 1,
             is_active=True,
             created_by=created_by,
-            created_at=datetime.now(timezone.utc),
-            **{k: v for k, v in data.items() if k not in ("version", "is_active", "created_by", "created_at", "id")},
+            created_at=datetime.now(UTC),
+            **{
+                k: v
+                for k, v in data.items()
+                if k not in ("version", "is_active", "created_by", "created_at", "id")
+            },
         )
         self._session.add(config)
         await self._session.commit()

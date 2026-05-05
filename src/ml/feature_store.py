@@ -1,8 +1,6 @@
 import asyncio
 import json
-import struct
 import time
-from typing import Optional
 
 import redis.asyncio as aioredis
 
@@ -20,7 +18,7 @@ class RedisFeatureStore(FeatureStore):
     def _key(self, device_id: str) -> str:
         return f"ml:embedding:{device_id}"
 
-    async def get_embedding(self, device_id: str) -> Optional[UserEmbedding]:
+    async def get_embedding(self, device_id: str) -> UserEmbedding | None:
         raw = await self._redis.get(self._key(device_id))
         if raw is None:
             return None
@@ -37,11 +35,13 @@ class RedisFeatureStore(FeatureStore):
             return None
 
     async def set_embedding(self, device_id: str, vector: bytes, model_version: int) -> None:
-        data = json.dumps({
-            "vector_hex": vector.hex(),
-            "model_version": model_version,
-            "computed_at": time.time(),
-        })
+        data = json.dumps(
+            {
+                "vector_hex": vector.hex(),
+                "model_version": model_version,
+                "computed_at": time.time(),
+            }
+        )
         await self._redis.setex(self._key(device_id), self._ttl, data.encode())
         logger.debug("embedding_cached", device_id=device_id, model_version=model_version)
 
@@ -60,10 +60,11 @@ async def refresh_embeddings_for_all_devices(
     Each iteration queries active devices and writes a fresh embedding for each.
     """
     from sqlalchemy import select
+
     from src.db.models.device import Device
+    from src.ml.registry import DbModelRegistry
     from src.ml.training.data_extractor import DataExtractor
     from src.ml.training.feature_engineer import FeatureEngineer
-    from src.ml.registry import DbModelRegistry
 
     registry = DbModelRegistry(db)
     engineer = FeatureEngineer(min_days=min_telemetry_days)
@@ -87,7 +88,9 @@ async def refresh_embeddings_for_all_devices(
                     await feature_store.set_embedding(device.device_id, df.vector, model_version)
                     refreshed += 1
 
-            logger.info("embedding_refresh_complete", refreshed=refreshed, model_version=model_version)
+            logger.info(
+                "embedding_refresh_complete", refreshed=refreshed, model_version=model_version
+            )
         except Exception as exc:
             logger.warning("embedding_refresh_failed", error=str(exc))
 

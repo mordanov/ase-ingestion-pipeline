@@ -19,6 +19,7 @@ class IotCoreAdapter(TwinRegistryAdapter):
     def _get_client(self):
         if self._client is None:
             import boto3
+
             self._client = boto3.client("iot", region_name=self._region)
         return self._client
 
@@ -42,7 +43,6 @@ class IotCoreAdapter(TwinRegistryAdapter):
             return None
 
     async def get_state(self, device_id: str) -> dict | None:
-        client = self._get_client()
         try:
             data_client = self._get_data_client()
             response = await asyncio.to_thread(
@@ -50,6 +50,7 @@ class IotCoreAdapter(TwinRegistryAdapter):
                 thingName=device_id,
             )
             import json
+
             payload = json.loads(response["payload"].read())
             return payload.get("state", {}).get("reported")
         except Exception as exc:
@@ -58,6 +59,7 @@ class IotCoreAdapter(TwinRegistryAdapter):
 
     def _get_data_client(self):
         import boto3
+
         return boto3.client(
             "iot-data",
             region_name=self._region,

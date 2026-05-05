@@ -1,4 +1,5 @@
 """DeviceRegistry — coordinates DB upsert and twin adapter registration."""
+
 from src.digital_twin.interfaces import TwinRegistryAdapter
 from src.observability.logging import get_logger
 

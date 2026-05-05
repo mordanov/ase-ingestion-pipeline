@@ -48,15 +48,23 @@ def compact_table(path: Path, label: str, dry_run: bool) -> bool:
     removed = dt.vacuum(retention_hours=0, enforce_retention_duration=False, dry_run=False)
     print(f"[{label}]   removed       : {len(removed)} file(s)")
 
-    print(f"[{label}] Done. Table is now at version {dt.version()} with {len(dt.file_uris())} part-file(s).")
+    print(
+        f"[{label}] Done. Table is now at version {dt.version()} with {len(dt.file_uris())} part-file(s)."
+    )
     return True
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compact Delta Lake tables")
     parser.add_argument("--base-dir", default="./data/delta", help="Root of the events Delta table")
-    parser.add_argument("--recommendations-dir", default="./data/recommendations", help="Root of the recommendations Delta table")
-    parser.add_argument("--dry-run", action="store_true", help="Report stats without rewriting files")
+    parser.add_argument(
+        "--recommendations-dir",
+        default="./data/recommendations",
+        help="Root of the recommendations Delta table",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Report stats without rewriting files"
+    )
     args = parser.parse_args()
 
     ok_events = compact_table(Path(args.base_dir), "events", args.dry_run)

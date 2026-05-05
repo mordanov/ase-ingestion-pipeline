@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -10,8 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from src.api.dependencies import DbSession, Publisher
 from src.config import get_settings
 from src.db.models import TelemetryEvent
-from src.db.models.telemetry import SourceProtocol as DBSourceProtocol, ValidationStatus
-from src.ingestion.adapters.http_adapter import HttpIngestionAdapter, ValidationError as ParseError
+from src.db.models.telemetry import SourceProtocol as DBSourceProtocol
+from src.db.models.telemetry import ValidationStatus
+from src.ingestion.adapters.http_adapter import HttpIngestionAdapter
+from src.ingestion.adapters.http_adapter import ValidationError as ParseError
 from src.ingestion.delta_writer import DeltaEventWriter, EventRecord
 from src.ingestion.validator import ValidationError, quarantine_event, validate_event
 from src.observability.logging import bind_trace_id, get_logger
@@ -80,7 +81,9 @@ async def ingest(
         try:
             result = await validate_event(event, db)
             if not result.is_valid:
-                await quarantine_event(event, result.error_code or "INVALID", result.error_message or "", db)
+                await quarantine_event(
+                    event, result.error_code or "INVALID", result.error_message or "", db
+                )
                 quarantined += 1
                 if result.error_code == "DEVICE_DISABLED":
                     device_disabled_ids.append(event.device_id)
@@ -88,11 +91,15 @@ async def ingest(
 
             event.is_anomaly = result.is_anomaly
 
-            dup = await db.execute(select(TelemetryEvent.id).where(TelemetryEvent.event_id == event.event_id))
+            dup = await db.execute(
+                select(TelemetryEvent.id).where(TelemetryEvent.event_id == event.event_id)
+            )
             if dup.scalar_one_or_none() is not None:
                 continue  # idempotent: duplicate event_id silently skipped
 
-            validation_status = ValidationStatus.stale if result.is_stale else ValidationStatus.valid
+            validation_status = (
+                ValidationStatus.stale if result.is_stale else ValidationStatus.valid
+            )
             te = TelemetryEvent(
                 id=uuid.uuid4(),
                 event_id=event.event_id,
@@ -108,18 +115,22 @@ async def ingest(
             db.add(te)
 
             # Award credits for this event
-            device_result = await db.execute(select(Device).where(Device.device_id == event.device_id))
+            device_result = await db.execute(
+                select(Device).where(Device.device_id == event.device_id)
+            )
             device = device_result.scalar_one_or_none()
             if device is not None:
                 try:
                     awarded = await earning_svc.award_for_event(event, device)
                     tier = device.reward_tier
-                    credit_results.append(EventCreditResult(
-                        device_id=event.device_id,
-                        activity_reward=awarded,
-                        resulting_balance=device.credit_balance,
-                        reward_tier=tier.value if hasattr(tier, "value") else str(tier),
-                    ))
+                    credit_results.append(
+                        EventCreditResult(
+                            device_id=event.device_id,
+                            activity_reward=awarded,
+                            resulting_balance=device.credit_balance,
+                            reward_tier=tier.value if hasattr(tier, "value") else str(tier),
+                        )
+                    )
                 except Exception as earn_exc:
                     logger.warning("earning_failed", event_id=event.event_id, error=str(earn_exc))
 

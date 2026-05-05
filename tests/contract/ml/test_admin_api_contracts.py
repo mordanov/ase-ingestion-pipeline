@@ -1,4 +1,5 @@
 """Contract tests for admin ML API endpoints — T034, T045, T046."""
+
 import pytest
 from httpx import AsyncClient
 
@@ -12,6 +13,7 @@ async def client(async_client: AsyncClient):
 
 
 # ── Training API contracts (T034) ──────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_retrain_requires_api_key(client):
@@ -77,6 +79,7 @@ async def test_get_training_job_404_for_unknown_id(client):
 
 # ── ML Metrics contract (T045, T046) ──────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ml_metrics_requires_api_key(client):
     resp = await client.get("/admin/ml/metrics")
@@ -101,11 +104,14 @@ async def test_ml_metrics_no_model_returns_null_fields(client):
     assert resp.status_code == 200
     data = resp.json()
     # Model version should be null when no model has been trained
-    assert data["reranker"]["model_version"] is None or isinstance(data["reranker"]["model_version"], int)
+    assert data["reranker"]["model_version"] is None or isinstance(
+        data["reranker"]["model_version"], int
+    )
     assert data["staleness"]["threshold_seconds"] > 0
 
 
 # ── Model package contract ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_model_package_latest_404_when_no_package(client):

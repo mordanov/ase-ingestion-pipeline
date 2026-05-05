@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -24,9 +24,7 @@ class TrainedModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_type: Mapped[ModelType] = mapped_column(Enum(ModelType), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    training_job_id: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    training_job_id: Mapped[str] = mapped_column(String(64), nullable=False)
     artifact_path: Mapped[str] = mapped_column(String(512), nullable=False)
     predecessor_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("ml_trained_models.id"), nullable=True
@@ -37,6 +35,6 @@ class TrainedModel(Base):
         Enum(ModelDeploymentStatus), nullable=False, default=ModelDeploymentStatus.active
     )
     trained_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

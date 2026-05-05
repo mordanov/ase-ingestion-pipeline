@@ -19,6 +19,7 @@ class KinesisPublisher(EventPublisher):
     def _get_client(self):
         if self._client is None:
             import boto3
+
             self._client = boto3.client("kinesis", region_name=self._region)
         return self._client
 
@@ -54,6 +55,7 @@ class LocalRedisStreamsPublisher(EventPublisher):
     async def _get_redis(self):
         if self._redis is None:
             import redis.asyncio as aioredis
+
             self._redis = await aioredis.from_url(self._redis_url)
         return self._redis
 

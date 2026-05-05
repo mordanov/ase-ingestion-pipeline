@@ -1,11 +1,11 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.credits import CreditActionType, CreditTransaction
-from src.db.models.device import Device, RewardTier
 from src.credits.tier_engine import TierEngine
+from src.db.models.credits import CreditActionType, CreditTransaction
+from src.db.models.device import Device
 from src.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -64,6 +64,7 @@ class CreditLedger:
                 DEVICE_CREDITS_EARNED,
                 DEVICE_CREDITS_SPENT,
             )
+
             DEVICE_CREDIT_BALANCE.labels(device_id=device.device_id).set(new_balance)
             if delta > 0:
                 DEVICE_CREDITS_EARNED.labels(
@@ -96,7 +97,7 @@ class CreditLedger:
             resulting_balance=resulting_balance,
             metadata_=metadata,
             event_id=event_id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         session.add(tx)
         return tx

@@ -1,7 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +31,7 @@ class TrainingPipeline:
         telemetry_dir: str,
         recommendations_dir: str,
         artifact_dir: str,
-        package_dir: Optional[str] = None,
+        package_dir: str | None = None,
         min_telemetry_days: int = 1,
     ):
         self._db = db
@@ -55,7 +54,7 @@ class TrainingPipeline:
             id=job_id,
             status=TrainingJobStatus.running,
             triggered_by=triggered_by,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         self._db.add(job)
         await self._db.commit()
@@ -84,7 +83,7 @@ class TrainingPipeline:
         # Step 1: Extract data
         logger.info("pipeline_step", job_id=job_id_str, step="data_extraction")
         telemetry = await self._extractor.extract_telemetry()
-        recommendations = await self._extractor.extract_recommendations()
+        await self._extractor.extract_recommendations()
 
         # Step 2: Feature engineering
         logger.info("pipeline_step", job_id=job_id_str, step="feature_engineering")
@@ -117,7 +116,7 @@ class TrainingPipeline:
 
         # Mark job succeeded
         job.status = TrainingJobStatus.succeeded
-        job.ended_at = datetime.now(timezone.utc)
+        job.ended_at = datetime.now(UTC)
         job.reranker_model_id = reranker_id
         job.anomaly_detector_model_id = anomaly_id
         job.reranker_ndcg_at_10 = reranker_artifact.ndcg_at_10
@@ -141,6 +140,7 @@ class TrainingPipeline:
         if self._package_dir:
             try:
                 from src.ml.distributor import Distributor
+
                 distributor = Distributor(db=self._db, package_dir=self._package_dir)
                 await distributor.build_package()
             except Exception as exc:
@@ -153,7 +153,7 @@ class TrainingPipeline:
 
     async def _fail_job(self, job: TrainingJob, error: str) -> None:
         job.status = TrainingJobStatus.failed
-        job.ended_at = datetime.now(timezone.utc)
+        job.ended_at = datetime.now(UTC)
         job.error_message = error
         await self._db.commit()
         logger.info(
@@ -164,13 +164,14 @@ class TrainingPipeline:
         )
 
 
-def _update_ml_gauges(ndcg: Optional[float], f1: Optional[float]) -> None:
+def _update_ml_gauges(ndcg: float | None, f1: float | None) -> None:
     try:
         from src.observability.metrics import (
-            ML_RERANKER_NDCG_AT_10,
             ML_ANOMALY_F1_SCORE,
             ML_MODEL_STALENESS_SECONDS,
+            ML_RERANKER_NDCG_AT_10,
         )
+
         if ndcg is not None:
             ML_RERANKER_NDCG_AT_10.set(ndcg)
         if f1 is not None:

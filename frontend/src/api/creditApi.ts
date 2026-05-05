@@ -7,7 +7,9 @@ const headers = () => ({
 
 export class UnauthorizedError extends Error {
   status = 401
-  constructor() { super('Invalid API key — please update it and try again.') }
+  constructor() {
+    super('Invalid API key — please update it and try again.')
+  }
 }
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
@@ -65,8 +67,7 @@ export interface TransactionHistory {
   items: TransactionItem[]
 }
 
-export const getCreditConfig = () =>
-  apiFetch<CreditConfig>('/api/v1/credit-config')
+export const getCreditConfig = () => apiFetch<CreditConfig>('/api/v1/credit-config')
 
 export const updateCreditConfig = (data: Partial<CreditConfig>) =>
   apiFetch<CreditConfig>('/api/v1/credit-config', {
@@ -79,15 +80,13 @@ export const getDeviceCredits = (deviceId: string) =>
 
 export const getDeviceTransactions = (
   deviceId: string,
-  params: { limit?: number; offset?: number; action_type?: string } = {}
+  params: { limit?: number; offset?: number; action_type?: string } = {},
 ) => {
   const qs = new URLSearchParams()
   if (params.limit) qs.set('limit', String(params.limit))
   if (params.offset) qs.set('offset', String(params.offset))
   if (params.action_type) qs.set('action_type', params.action_type)
-  return apiFetch<TransactionHistory>(
-    `/api/v1/devices/${deviceId}/credits/transactions?${qs}`
-  )
+  return apiFetch<TransactionHistory>(`/api/v1/devices/${deviceId}/credits/transactions?${qs}`)
 }
 
 export const topUpCredits = (deviceId: string, amount: number, reason: string) =>
@@ -144,12 +143,10 @@ export interface MeasurementHistory {
 
 export const getDeviceEvents = (
   deviceId: string,
-  params: { limit?: number; offset?: number } = {}
+  params: { limit?: number; offset?: number } = {},
 ) => {
   const qs = new URLSearchParams()
   if (params.limit) qs.set('limit', String(params.limit))
   if (params.offset) qs.set('offset', String(params.offset))
-  return apiFetch<MeasurementHistory>(
-    `/api/v1/devices/${deviceId}/events?${qs}`
-  )
+  return apiFetch<MeasurementHistory>(`/api/v1/devices/${deviceId}/events?${qs}`)
 }

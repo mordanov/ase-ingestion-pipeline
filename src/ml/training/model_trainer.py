@@ -1,9 +1,8 @@
 import os
 import struct
 from dataclasses import dataclass
-from typing import Optional
 
-from src.ml.training.feature_engineer import DeviceFeatures, _EMBEDDING_DIM
+from src.ml.training.feature_engineer import _EMBEDDING_DIM, DeviceFeatures
 from src.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -15,8 +14,8 @@ _ANOMALY_DIM = 16
 class TrainedArtifact:
     model_type: str  # "reranker" | "anomaly_detector"
     artifact_path: str
-    ndcg_at_10: Optional[float]
-    f1_score: Optional[float]
+    ndcg_at_10: float | None
+    f1_score: float | None
 
 
 class ModelTrainer:
@@ -40,14 +39,8 @@ class ModelTrainer:
 
         dim = _EMBEDDING_DIM
         if device_features:
-            all_vecs = [
-                list(struct.unpack(f"{dim}f", df.vector))
-                for df in device_features
-            ]
-            weights = [
-                sum(v[i] for v in all_vecs) / len(all_vecs)
-                for i in range(dim)
-            ]
+            all_vecs = [list(struct.unpack(f"{dim}f", df.vector)) for df in device_features]
+            weights = [sum(v[i] for v in all_vecs) / len(all_vecs) for i in range(dim)]
         else:
             weights = [0.0] * dim
 
@@ -78,12 +71,10 @@ class ModelTrainer:
         dim = _ANOMALY_DIM
         if device_features:
             all_vecs = [
-                list(struct.unpack(f"{_EMBEDDING_DIM}f", df.vector))
-                for df in device_features
+                list(struct.unpack(f"{_EMBEDDING_DIM}f", df.vector)) for df in device_features
             ]
             means = [
-                sum(v[i] for v in all_vecs) / len(all_vecs)
-                for i in range(min(dim, _EMBEDDING_DIM))
+                sum(v[i] for v in all_vecs) / len(all_vecs) for i in range(min(dim, _EMBEDDING_DIM))
             ]
             stds = [
                 (sum((v[i] - means[i]) ** 2 for v in all_vecs) / len(all_vecs)) ** 0.5 + 1e-6
@@ -104,25 +95,29 @@ class ModelTrainer:
             f1_score=f1,
         )
 
-    def _evaluate_reranker(self, features: list[DeviceFeatures]) -> Optional[float]:
+    def _evaluate_reranker(self, features: list[DeviceFeatures]) -> float | None:
         if not features:
             return None
         try:
-            from sklearn.metrics import ndcg_score
             import numpy as np
+            from sklearn.metrics import ndcg_score
+
             n = min(len(features), 20)
             y_true = [float(f.sample_count) for f in features[:n]]
             y_score = [float(f.telemetry_days) for f in features[:n]]
-            score = ndcg_score(np.array(y_true).reshape(1, -1), np.array(y_score).reshape(1, -1), k=10)
+            score = ndcg_score(
+                np.array(y_true).reshape(1, -1), np.array(y_score).reshape(1, -1), k=10
+            )
             return float(round(score, 4))
         except Exception:
             return None
 
-    def _evaluate_anomaly_detector(self, features: list[DeviceFeatures]) -> Optional[float]:
+    def _evaluate_anomaly_detector(self, features: list[DeviceFeatures]) -> float | None:
         if not features:
             return None
         try:
             from sklearn.metrics import f1_score
+
             threshold = sum(f.sample_count for f in features) / len(features)
             y_true = [0 if f.sample_count >= threshold else 1 for f in features]
             y_pred = [0 if f.telemetry_days >= 14 else 1 for f in features]
@@ -186,8 +181,8 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
 
     # buffers vector: [buf0, buf1]
     b.StartVector(4, 2, 4)
-    b.PrependUOffsetTRelative(buf1)   # index 1 (prepended first → ends up last)
-    b.PrependUOffsetTRelative(buf0)   # index 0
+    b.PrependUOffsetTRelative(buf1)  # index 1 (prepended first → ends up last)
+    b.PrependUOffsetTRelative(buf0)  # index 0
     buffers_vec = b.EndVector(2)
 
     # OperatorCode: FULLY_CONNECTED = 9
@@ -195,8 +190,8 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
     #   slot 2: version (int32, default 1)
     #   slot 3: builtin_code (int32)
     b.StartObject(4)
-    b.PrependInt8Slot(0, 9, 0)    # deprecated_builtin_code = FULLY_CONNECTED
-    b.PrependInt32Slot(3, 9, 0)   # builtin_code = FULLY_CONNECTED
+    b.PrependInt8Slot(0, 9, 0)  # deprecated_builtin_code = FULLY_CONNECTED
+    b.PrependInt32Slot(3, 9, 0)  # builtin_code = FULLY_CONNECTED
     op_code = b.EndObject()
 
     b.StartVector(4, 1, 4)
@@ -214,9 +209,9 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
     shape_in = b.EndVector(2)
 
     b.StartObject(9)
-    b.PrependUOffsetTRelativeSlot(0, shape_in, 0)   # shape
-    b.PrependUOffsetTRelativeSlot(3, s_input, 0)    # name
-    b.PrependBoolSlot(8, True, False)                # has_rank=true
+    b.PrependUOffsetTRelativeSlot(0, shape_in, 0)  # shape
+    b.PrependUOffsetTRelativeSlot(3, s_input, 0)  # name
+    b.PrependBoolSlot(8, True, False)  # has_rank=true
     tensor_in = b.EndObject()
 
     # Tensor 1: weights, shape [1, input_dim], buffer=1
@@ -226,10 +221,10 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
     shape_w = b.EndVector(2)
 
     b.StartObject(9)
-    b.PrependUOffsetTRelativeSlot(0, shape_w, 0)    # shape
-    b.PrependUint32Slot(2, 1, 0)                     # buffer=1
+    b.PrependUOffsetTRelativeSlot(0, shape_w, 0)  # shape
+    b.PrependUint32Slot(2, 1, 0)  # buffer=1
     b.PrependUOffsetTRelativeSlot(3, s_weights, 0)  # name
-    b.PrependBoolSlot(8, True, False)                # has_rank=true
+    b.PrependBoolSlot(8, True, False)  # has_rank=true
     tensor_w = b.EndObject()
 
     # Tensor 2: output, shape [1, 1], buffer=0
@@ -240,8 +235,8 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
 
     b.StartObject(9)
     b.PrependUOffsetTRelativeSlot(0, shape_out, 0)  # shape
-    b.PrependUOffsetTRelativeSlot(3, s_output, 0)   # name
-    b.PrependBoolSlot(8, True, False)                # has_rank=true
+    b.PrependUOffsetTRelativeSlot(3, s_output, 0)  # name
+    b.PrependBoolSlot(8, True, False)  # has_rank=true
     tensor_out = b.EndObject()
 
     # tensors vector: [tensor_in, tensor_w, tensor_out]
@@ -270,10 +265,10 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
     #   slot 3: builtin_options_type (union type tag, uint8) = 8 (FullyConnectedOptions)
     #   slot 4: builtin_options (union value table)
     b.StartObject(9)
-    b.PrependUOffsetTRelativeSlot(1, op_inputs, 0)    # inputs
-    b.PrependUOffsetTRelativeSlot(2, op_outputs, 0)   # outputs
-    b.PrependUint8Slot(3, 8, 0)                        # builtin_options_type=FullyConnectedOptions
-    b.PrependUOffsetTRelativeSlot(4, fc_opts, 0)      # builtin_options
+    b.PrependUOffsetTRelativeSlot(1, op_inputs, 0)  # inputs
+    b.PrependUOffsetTRelativeSlot(2, op_outputs, 0)  # outputs
+    b.PrependUint8Slot(3, 8, 0)  # builtin_options_type=FullyConnectedOptions
+    b.PrependUOffsetTRelativeSlot(4, fc_opts, 0)  # builtin_options
     operator = b.EndObject()
 
     b.StartVector(4, 1, 4)
@@ -291,11 +286,11 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
 
     # SubGraph (5 fields): tensors, inputs, outputs, operators, name
     b.StartObject(5)
-    b.PrependUOffsetTRelativeSlot(0, tensors_vec, 0)    # tensors
-    b.PrependUOffsetTRelativeSlot(1, sg_inputs, 0)      # inputs
-    b.PrependUOffsetTRelativeSlot(2, sg_outputs, 0)     # outputs
+    b.PrependUOffsetTRelativeSlot(0, tensors_vec, 0)  # tensors
+    b.PrependUOffsetTRelativeSlot(1, sg_inputs, 0)  # inputs
+    b.PrependUOffsetTRelativeSlot(2, sg_outputs, 0)  # outputs
     b.PrependUOffsetTRelativeSlot(3, operators_vec, 0)  # operators
-    b.PrependUOffsetTRelativeSlot(4, s_subgraph, 0)     # name
+    b.PrependUOffsetTRelativeSlot(4, s_subgraph, 0)  # name
     subgraph = b.EndObject()
 
     b.StartVector(4, 1, 4)
@@ -304,11 +299,11 @@ def _build_fc_tflite(input_dim: int, weight_data: bytes, model_name: str) -> byt
 
     # Model (8 fields): version, operator_codes, subgraphs, description, buffers, ...
     b.StartObject(8)
-    b.PrependUint32Slot(0, 3, 0)                           # version=3
-    b.PrependUOffsetTRelativeSlot(1, op_codes_vec, 0)      # operator_codes
-    b.PrependUOffsetTRelativeSlot(2, subgraphs_vec, 0)     # subgraphs
-    b.PrependUOffsetTRelativeSlot(3, s_model, 0)           # description
-    b.PrependUOffsetTRelativeSlot(4, buffers_vec, 0)       # buffers
+    b.PrependUint32Slot(0, 3, 0)  # version=3
+    b.PrependUOffsetTRelativeSlot(1, op_codes_vec, 0)  # operator_codes
+    b.PrependUOffsetTRelativeSlot(2, subgraphs_vec, 0)  # subgraphs
+    b.PrependUOffsetTRelativeSlot(3, s_model, 0)  # description
+    b.PrependUOffsetTRelativeSlot(4, buffers_vec, 0)  # buffers
     model_off = b.EndObject()
 
     b.Finish(model_off)

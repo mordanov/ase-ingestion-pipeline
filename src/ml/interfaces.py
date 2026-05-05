@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -20,7 +19,7 @@ class AnomalyResult:
 
 class FeatureStore(ABC):
     @abstractmethod
-    async def get_embedding(self, device_id: str) -> Optional[UserEmbedding]: ...
+    async def get_embedding(self, device_id: str) -> UserEmbedding | None: ...
 
     @abstractmethod
     async def set_embedding(self, device_id: str, vector: bytes, model_version: int) -> None: ...
@@ -40,7 +39,7 @@ class Reranker(ABC):
         """
         ...
 
-    def get_p99_latency_ms(self) -> Optional[float]:
+    def get_p99_latency_ms(self) -> float | None:
         return None
 
 
@@ -56,7 +55,7 @@ class AnomalyDetector(ABC):
 
 class ModelRegistry(ABC):
     @abstractmethod
-    async def get_active_artifact_path(self, model_type: str) -> Optional[str]: ...
+    async def get_active_artifact_path(self, model_type: str) -> str | None: ...
 
     @abstractmethod
-    async def get_active_version(self, model_type: str) -> Optional[int]: ...
+    async def get_active_version(self, model_type: str) -> int | None: ...

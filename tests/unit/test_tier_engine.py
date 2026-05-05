@@ -1,5 +1,4 @@
 """Unit tests for src/credits/tier_engine.py (T047)."""
-import pytest
 
 from src.credits.tier_engine import TierEngine
 from src.db.models import RewardTier

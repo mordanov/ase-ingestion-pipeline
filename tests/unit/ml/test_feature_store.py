@@ -1,10 +1,10 @@
 """Unit tests for RedisFeatureStore — T013 (must FAIL before implementation)."""
+
 import struct
 import time
 
-import pytest
 import fakeredis.aioredis
-
+import pytest
 from src.ml.feature_store import RedisFeatureStore
 
 

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models import Device, QuarantineRecord, TelemetryEvent
+from src.db.models import Device, QuarantineRecord
 from src.db.models.disabled_device import DisabledDevice
 from src.ingestion.interfaces import IngestionEvent
 from src.observability.logging import get_logger
@@ -46,20 +46,28 @@ async def validate_event(event: IngestionEvent, session: AsyncSession) -> Valida
     )
     device = result.scalar_one_or_none()
     if device is None:
-        return ValidationResult(is_valid=False, error_code="UNKNOWN_DEVICE", error_message=f"Device {event.device_id!r} not registered")
+        return ValidationResult(
+            is_valid=False,
+            error_code="UNKNOWN_DEVICE",
+            error_message=f"Device {event.device_id!r} not registered",
+        )
 
     disabled = await session.scalar(
         select(DisabledDevice).where(DisabledDevice.device_id == event.device_id)
     )
     if disabled is not None:
-        return ValidationResult(is_valid=False, error_code="DEVICE_DISABLED", error_message=f"Device {event.device_id!r} is disabled")
+        return ValidationResult(
+            is_valid=False,
+            error_code="DEVICE_DISABLED",
+            error_message=f"Device {event.device_id!r} is disabled",
+        )
 
     # Check staleness
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(hours=STALE_THRESHOLD_HOURS)
     ts = event.event_timestamp
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.replace(tzinfo=UTC)
     is_stale = ts < cutoff
 
     is_anomaly = event.is_anomaly or bool(event.payload.get("is_anomaly", False))
@@ -67,9 +75,13 @@ async def validate_event(event: IngestionEvent, session: AsyncSession) -> Valida
     return ValidationResult(is_valid=True, is_stale=is_stale, is_anomaly=is_anomaly)
 
 
-async def quarantine_event(event: IngestionEvent, error_code: str, error_message: str, session: AsyncSession) -> None:
+async def quarantine_event(
+    event: IngestionEvent, error_code: str, error_message: str, session: AsyncSession
+) -> None:
     # Only set device_id FK when the device is known to exist; unknown/missing devices use NULL
-    fk_device_id = None if error_code in ("UNKNOWN_DEVICE", "MISSING") else (event.device_id or None)
+    fk_device_id = (
+        None if error_code in ("UNKNOWN_DEVICE", "MISSING") else (event.device_id or None)
+    )
     record = QuarantineRecord(
         device_id=fk_device_id,
         raw_payload=event.payload,

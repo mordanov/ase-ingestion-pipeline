@@ -1,11 +1,10 @@
 """Unit tests for EarningService (T020)."""
+
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from src.db.models.device import Device, RewardTier
-from src.db.models.credits import CreditActionType
 
 
 def _make_config(
@@ -18,7 +17,12 @@ def _make_config(
     cfg = MagicMock()
     cfg.activity_earning_rules = earning_rules or {"workout": 10, "sleep": 3, "default": 2}
     cfg.tier_thresholds = tier_thresholds or {"silver": 1000, "gold": 5000, "platinum": 20000}
-    cfg.tier_multipliers = tier_multipliers or {"bronze": 1.0, "silver": 1.25, "gold": 1.5, "platinum": 2.0}
+    cfg.tier_multipliers = tier_multipliers or {
+        "bronze": 1.0,
+        "silver": 1.25,
+        "gold": 1.5,
+        "platinum": 2.0,
+    }
     cfg.streak_bonus_7d = streak_bonus_7d
     cfg.streak_bonus_30d = streak_bonus_30d
     return cfg

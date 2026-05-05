@@ -4,6 +4,7 @@ These hit the live endpoint and verify the response schema.
 Requires SERVICE1_ENDPOINT and SERVICE1_TOKEN env vars (or defaults).
 Skip if endpoint not reachable.
 """
+
 import json
 import os
 

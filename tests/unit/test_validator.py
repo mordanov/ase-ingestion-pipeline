@@ -1,9 +1,9 @@
 """Unit tests for src/ingestion/validator.py"""
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from src.ingestion.interfaces import IngestionEvent, SourceProtocol
 
 
@@ -12,7 +12,7 @@ def _make_event(**overrides) -> IngestionEvent:
         device_id="dev-001",
         event_id="evt-abc",
         source_protocol=SourceProtocol.HTTP,
-        event_timestamp=datetime.now(timezone.utc),
+        event_timestamp=datetime.now(UTC),
         payload={"heart_rate": {"bpm": 72}},
         trace_id="trace-xyz",
         is_batch=False,
@@ -24,10 +24,12 @@ def _make_event(**overrides) -> IngestionEvent:
 
 @pytest.mark.asyncio
 async def test_valid_event_passes():
-    from src.ingestion.validator import ValidationError, validate_event
+    from src.ingestion.validator import validate_event
 
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001")))
+    session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
+    )
 
     event = _make_event()
     result = await validate_event(event, session)
@@ -50,11 +52,13 @@ async def test_missing_device_id_raises():
 async def test_stale_timestamp_sets_flag():
     from src.ingestion.validator import validate_event
 
-    old_ts = datetime.now(timezone.utc) - timedelta(hours=25)
+    old_ts = datetime.now(UTC) - timedelta(hours=25)
     event = _make_event(event_timestamp=old_ts)
 
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001")))
+    session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
+    )
 
     result = await validate_event(event, session)
     assert result.is_stale
@@ -66,7 +70,9 @@ async def test_anomaly_flag_passthrough():
 
     event = _make_event(payload={"is_anomaly": True, "heart_rate": {"bpm": 220}})
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001")))
+    session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value="dev-001"))
+    )
 
     result = await validate_event(event, session)
     assert result.is_valid
@@ -78,7 +84,9 @@ async def test_unknown_device_quarantines():
 
     event = _make_event(device_id="unknown-device-xyz")
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+    session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+    )
 
     result = await validate_event(event, session)
     assert not result.is_valid

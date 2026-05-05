@@ -1,6 +1,6 @@
 """Unit tests for DataExtractor — T031 (must FAIL before implementation)."""
-import pytest
 
+import pytest
 from src.ml.training.data_extractor import DataExtractor
 
 
@@ -39,6 +39,7 @@ async def test_extract_telemetry_handles_corrupt_dir(tmp_path):
 @pytest.mark.asyncio
 async def test_extract_returns_telemetry_record_objects(extractor):
     from src.ml.training.data_extractor import TelemetryRecord
+
     records = await extractor.extract_telemetry()
     for r in records:
         assert isinstance(r, TelemetryRecord)

@@ -26,7 +26,10 @@ function ApiKeyGate() {
 
   const saveKey = () => {
     const trimmed = key.trim()
-    if (!trimmed) { setError('Key cannot be empty'); return }
+    if (!trimmed) {
+      setError('Key cannot be empty')
+      return
+    }
     sessionStorage.setItem('apiKey', trimmed)
     setSaved(true)
     setError(null)
@@ -66,10 +69,27 @@ function ApiKeyGate() {
     )
   }
 
-  return <AppShell onChangeKey={() => { sessionStorage.removeItem('apiKey'); setKey(DEFAULT_API_KEY); setSaved(false); setError(null) }} />
+  return (
+    <AppShell
+      onChangeKey={() => {
+        sessionStorage.removeItem('apiKey')
+        setKey(DEFAULT_API_KEY)
+        setSaved(false)
+        setError(null)
+      }}
+    />
+  )
 }
 
-function TreeNavLink({ to, children, indent = false }: { to: string; children: React.ReactNode; indent?: boolean }) {
+function TreeNavLink({
+  to,
+  children,
+  indent = false,
+}: {
+  to: string
+  children: React.ReactNode
+  indent?: boolean
+}) {
   return (
     <NavLink
       to={to}
@@ -139,7 +159,9 @@ function Sidebar({ onChangeKey }: { onChangeKey: () => void }) {
       </nav>
 
       <div className="px-3 py-4 border-t border-slate-100 space-y-1">
-        <p className="text-xs text-slate-400 truncate font-mono px-1">{sessionStorage.getItem('apiKey')}</p>
+        <p className="text-xs text-slate-400 truncate font-mono px-1">
+          {sessionStorage.getItem('apiKey')}
+        </p>
         <button
           onClick={onChangeKey}
           className="w-full px-3 py-1.5 text-xs text-slate-500 border border-slate-200 rounded hover:bg-slate-50 text-left"

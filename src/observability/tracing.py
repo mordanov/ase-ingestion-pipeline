@@ -16,6 +16,7 @@ def configure_tracer(service_name: str) -> TracerProvider:
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
     if otlp_endpoint:
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
     else:
         exporter = ConsoleSpanExporter()

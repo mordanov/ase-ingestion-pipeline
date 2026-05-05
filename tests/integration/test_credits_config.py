@@ -1,7 +1,7 @@
 """Integration tests for credit configuration CRUD (T011, T012)."""
+
 import pytest
 from httpx import AsyncClient
-
 
 VALID_CONFIG = {
     "default_initial_balance": 150,
@@ -96,6 +96,7 @@ async def test_device_registered_after_config_change_gets_updated_initial_balanc
 
     # Register a new device
     import uuid
+
     device_id = f"test-config-device-{uuid.uuid4().hex[:8]}"
     reg_resp = await async_client.post(
         "/api/v1/devices",

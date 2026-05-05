@@ -1,13 +1,13 @@
 """Integration tests for automatic tier upgrade via activity earning (T041)."""
+
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
-
 from src.db.models import Device
 from src.db.models.device import DeviceType, RewardTier
+
 from tests.conftest import make_telemetry_event
 
 
@@ -31,8 +31,8 @@ async def test_tier_upgrades_to_silver_on_earning_cross_threshold(
         cumulative_credits_spent=0,
         cumulative_credits_earned=995,  # 5 below silver threshold
         reward_tier=RewardTier.bronze,
-        registered_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        registered_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     db_session.add(device)
     await db_session.commit()

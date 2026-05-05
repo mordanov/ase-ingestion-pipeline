@@ -51,6 +51,7 @@ export function AdminConfigPage() {
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (data) setForm(data)
   }, [data])
 
@@ -96,7 +97,11 @@ export function AdminConfigPage() {
         {/* Default balance */}
         <div>
           <label className="text-sm font-medium text-slate-700">Default Initial Balance</label>
-          <input type="number" {...field('default_initial_balance')} className="mt-1 block w-32 px-2 py-1 border border-slate-300 rounded text-sm" />
+          <input
+            type="number"
+            {...field('default_initial_balance')}
+            className="mt-1 block w-32 px-2 py-1 border border-slate-300 rounded text-sm"
+          />
         </div>
 
         {/* Earning rules */}
@@ -121,11 +126,19 @@ export function AdminConfigPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-slate-700">7-Day Streak Bonus</label>
-            <input type="number" {...field('streak_bonus_7d')} className="mt-1 block w-32 px-2 py-1 border border-slate-300 rounded text-sm" />
+            <input
+              type="number"
+              {...field('streak_bonus_7d')}
+              className="mt-1 block w-32 px-2 py-1 border border-slate-300 rounded text-sm"
+            />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700">30-Day Streak Bonus</label>
-            <input type="number" {...field('streak_bonus_30d')} className="mt-1 block w-32 px-2 py-1 border border-slate-300 rounded text-sm" />
+            <input
+              type="number"
+              {...field('streak_bonus_30d')}
+              className="mt-1 block w-32 px-2 py-1 border border-slate-300 rounded text-sm"
+            />
           </div>
         </div>
 
@@ -143,7 +156,9 @@ export function AdminConfigPage() {
           <KVEditor
             label="Tier Multipliers"
             value={form.tier_multipliers}
-            onChange={(v) => setForm((f) => ({ ...f, tier_multipliers: v as Record<string, number> }))}
+            onChange={(v) =>
+              setForm((f) => ({ ...f, tier_multipliers: v as Record<string, number> }))
+            }
           />
         )}
 
@@ -152,7 +167,9 @@ export function AdminConfigPage() {
           <KVEditor
             label="Tier Discounts (0.0–1.0)"
             value={form.tier_discounts}
-            onChange={(v) => setForm((f) => ({ ...f, tier_discounts: v as Record<string, number> }))}
+            onChange={(v) =>
+              setForm((f) => ({ ...f, tier_discounts: v as Record<string, number> }))
+            }
           />
         )}
 

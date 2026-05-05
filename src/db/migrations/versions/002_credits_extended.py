@@ -5,23 +5,29 @@ Revises: 001
 Create Date: 2026-05-04
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "002"
-down_revision: Union[str, None] = "001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "001"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     # Extend devices table
-    op.add_column("devices", sa.Column("streak_days", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column(
+        "devices", sa.Column("streak_days", sa.Integer(), nullable=False, server_default="0")
+    )
     op.add_column("devices", sa.Column("last_activity_date", sa.Date(), nullable=True))
-    op.add_column("devices", sa.Column("cumulative_credits_earned", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column(
+        "devices",
+        sa.Column("cumulative_credits_earned", sa.Integer(), nullable=False, server_default="0"),
+    )
 
     # Extend creditactiontype enum
     op.execute("ALTER TYPE creditactiontype ADD VALUE IF NOT EXISTS 'activity_reward'")
@@ -30,7 +36,10 @@ def upgrade() -> None:
     op.execute("ALTER TYPE creditactiontype ADD VALUE IF NOT EXISTS 'tier_discount'")
 
     # Extend credit_transactions table
-    op.add_column("credit_transactions", sa.Column("reason", sa.String(256), nullable=False, server_default=""))
+    op.add_column(
+        "credit_transactions",
+        sa.Column("reason", sa.String(256), nullable=False, server_default=""),
+    )
     op.add_column("credit_transactions", sa.Column("metadata", postgresql.JSONB(), nullable=True))
     op.add_column("credit_transactions", sa.Column("event_id", sa.String(128), nullable=True))
 
@@ -48,7 +57,12 @@ def upgrade() -> None:
         sa.Column("tier_thresholds", postgresql.JSONB(), nullable=False),
         sa.Column("tier_multipliers", postgresql.JSONB(), nullable=False),
         sa.Column("tier_discounts", postgresql.JSONB(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("created_by", sa.String(128), nullable=False, server_default="system"),
         sa.PrimaryKeyConstraint("id"),
     )

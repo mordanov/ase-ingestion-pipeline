@@ -7,7 +7,11 @@ export function DisabledDevicesPage() {
   const [input, setInput] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
 
-  const { data = [], isLoading, error } = useQuery({
+  const {
+    data = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['disabled-devices'],
     queryFn: listDisabledDevices,
   })
@@ -33,7 +37,10 @@ export function DisabledDevicesPage() {
 
   const handleDisable = () => {
     const id = input.trim()
-    if (!id) { setFormError('Device ID is required'); return }
+    if (!id) {
+      setFormError('Device ID is required')
+      return
+    }
     setFormError(null)
     addMutation.mutate(id)
   }
@@ -74,9 +81,7 @@ export function DisabledDevicesPage() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        {isLoading && (
-          <p className="p-4 text-sm text-slate-500">Loading…</p>
-        )}
+        {isLoading && <p className="p-4 text-sm text-slate-500">Loading…</p>}
         {error && (
           <p className="p-4 text-sm text-red-600">Failed to load: {(error as Error).message}</p>
         )}

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
-import logging
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
 import boto3
 
@@ -49,7 +47,7 @@ class KinesisConsumer:
         self._running = False
 
     def _describe_shards(self) -> list[dict]:
-        resp = self._client.describe_stream_summary(StreamName=self._stream_name)
+        self._client.describe_stream_summary(StreamName=self._stream_name)
         resp2 = self._client.list_shards(StreamName=self._stream_name)
         return resp2["Shards"]
 
@@ -96,4 +94,6 @@ class KinesisConsumer:
         try:
             await self._handler(data)
         except Exception as exc:
-            logger.error("kinesis_handler_error", sequence=record.get("SequenceNumber"), error=str(exc))
+            logger.error(
+                "kinesis_handler_error", sequence=record.get("SequenceNumber"), error=str(exc)
+            )

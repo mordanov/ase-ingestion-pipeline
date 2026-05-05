@@ -1,9 +1,9 @@
 """Unit tests for src/recommendation/aggregator.py"""
+
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
 from src.recommendation.interfaces import ProviderResult, RawRecommendation
 
 
@@ -16,8 +16,14 @@ def _mock_provider(provider_id: str, recs: list[RawRecommendation] | None = None
         provider.get_recommendations = AsyncMock(
             return_value=ProviderResult(
                 provider_id=provider_id,
-                recommendations=recs or [
-                    RawRecommendation(short_text="Walk more", detail=None, normalised_score=400.0, provider_id=provider_id)
+                recommendations=recs
+                or [
+                    RawRecommendation(
+                        short_text="Walk more",
+                        detail=None,
+                        normalised_score=400.0,
+                        provider_id=provider_id,
+                    )
                 ],
                 error=None,
                 duration_ms=50,
@@ -47,7 +53,9 @@ async def test_one_provider_times_out_returns_partial():
 
     async def slow_call(height_cm, weight_kg):
         await asyncio.sleep(10)
-        return ProviderResult(provider_id="service2", recommendations=[], error=None, duration_ms=10000)
+        return ProviderResult(
+            provider_id="service2", recommendations=[], error=None, duration_ms=10000
+        )
 
     p1 = _mock_provider("service1")
     p2 = AsyncMock()
@@ -84,7 +92,11 @@ async def test_providers_called_concurrently():
         finished.append(name)
         return ProviderResult(
             provider_id=name,
-            recommendations=[RawRecommendation(short_text="rec", detail=None, normalised_score=500.0, provider_id=name)],
+            recommendations=[
+                RawRecommendation(
+                    short_text="rec", detail=None, normalised_score=500.0, provider_id=name
+                )
+            ],
             error=None,
             duration_ms=int(delay * 1000),
         )

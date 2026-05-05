@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -52,16 +52,16 @@ async def disable_device(body: DisableDeviceRequest, db: DbSession) -> Any:
         raise HTTPException(status_code=404, detail=f"Device {body.device_id!r} is not registered")
 
     existing = (
-        await db.execute(
-            select(DisabledDevice).where(DisabledDevice.device_id == body.device_id)
-        )
+        await db.execute(select(DisabledDevice).where(DisabledDevice.device_id == body.device_id))
     ).scalar_one_or_none()
     if existing is not None:
-        raise HTTPException(status_code=409, detail=f"Device {body.device_id!r} is already disabled")
+        raise HTTPException(
+            status_code=409, detail=f"Device {body.device_id!r} is already disabled"
+        )
 
     record = DisabledDevice(
         device_id=body.device_id,
-        disabled_at=datetime.now(timezone.utc),
+        disabled_at=datetime.now(UTC),
     )
     db.add(record)
     await db.flush()
@@ -76,11 +76,11 @@ async def disable_device(body: DisableDeviceRequest, db: DbSession) -> Any:
 @router.delete("/disabled-devices/{device_id}", status_code=204)
 async def enable_device(device_id: str, db: DbSession) -> None:
     record = (
-        await db.execute(
-            select(DisabledDevice).where(DisabledDevice.device_id == device_id)
-        )
+        await db.execute(select(DisabledDevice).where(DisabledDevice.device_id == device_id))
     ).scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=404, detail=f"Device {device_id!r} is not in the disabled list")
+        raise HTTPException(
+            status_code=404, detail=f"Device {device_id!r} is not in the disabled list"
+        )
     await db.delete(record)
     logger.info("device_enabled", device_id=device_id)

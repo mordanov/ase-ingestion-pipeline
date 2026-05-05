@@ -41,12 +41,19 @@ async def aggregate(
                 p.get_recommendations(height_cm, weight_kg),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("provider_timeout", provider=p.provider_id)
-            return ProviderResult(provider_id=p.provider_id, recommendations=[], duration_ms=int(timeout * 1000), error="timeout")
+            return ProviderResult(
+                provider_id=p.provider_id,
+                recommendations=[],
+                duration_ms=int(timeout * 1000),
+                error="timeout",
+            )
         except Exception as exc:
             logger.error("provider_error", provider=p.provider_id, error=str(exc))
-            return ProviderResult(provider_id=p.provider_id, recommendations=[], duration_ms=0, error=str(exc))
+            return ProviderResult(
+                provider_id=p.provider_id, recommendations=[], duration_ms=0, error=str(exc)
+            )
 
     results: list[ProviderResult] = await asyncio.gather(*[_call(p) for p in providers])
 

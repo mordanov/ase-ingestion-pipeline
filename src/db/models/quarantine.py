@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -23,5 +23,5 @@ class QuarantineRecord(Base):
     source_protocol: Mapped[str] = mapped_column(String(16), nullable=False)
     trace_id: Mapped[str] = mapped_column(String(64), nullable=False)
     quarantined_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

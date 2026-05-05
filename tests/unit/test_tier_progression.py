@@ -1,16 +1,20 @@
 """Unit tests for TierEngine tier transitions (T040)."""
+
 from unittest.mock import MagicMock
 
-import pytest
-
-from src.db.models.device import RewardTier
 from src.credits.tier_engine import TierEngine
+from src.db.models.device import RewardTier
 
 
 def _make_config(thresholds=None, multipliers=None):
     cfg = MagicMock()
     cfg.tier_thresholds = thresholds or {"silver": 1000, "gold": 5000, "platinum": 20000}
-    cfg.tier_multipliers = multipliers or {"bronze": 1.0, "silver": 1.25, "gold": 1.5, "platinum": 2.0}
+    cfg.tier_multipliers = multipliers or {
+        "bronze": 1.0,
+        "silver": 1.25,
+        "gold": 1.5,
+        "platinum": 2.0,
+    }
     return cfg
 
 

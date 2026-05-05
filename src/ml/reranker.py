@@ -2,9 +2,6 @@ import hashlib
 import struct
 import time as _time
 from collections import deque
-from typing import Optional
-
-from opentelemetry import trace
 
 from src.ml.interfaces import FeatureStore, ModelRegistry, Reranker
 from src.observability.logging import get_logger
@@ -97,7 +94,7 @@ class TFLiteReranker(Reranker):
         h = int(hashlib.sha256(text.encode()).hexdigest(), 16)
         return [((h >> (i * 8)) & 0xFF) / 255.0 - 0.5 for i in range(dim)]
 
-    def get_p99_latency_ms(self) -> Optional[float]:
+    def get_p99_latency_ms(self) -> float | None:
         if len(self._latency_window) < 10:
             return None
         sorted_latencies = sorted(self._latency_window)
@@ -106,11 +103,12 @@ class TFLiteReranker(Reranker):
 
 
 def _dot(a: list[float], b: list[float]) -> float:
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=False))
 
 
 def _sigmoid(x: float) -> float:
     import math
+
     try:
         return 1.0 / (1.0 + math.exp(-x))
     except OverflowError:

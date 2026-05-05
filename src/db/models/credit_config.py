@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -23,6 +23,6 @@ class CreditConfig(Base):
     tier_multipliers: Mapped[dict] = mapped_column(JSONB, nullable=False)
     tier_discounts: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     created_by: Mapped[str] = mapped_column(String(128), nullable=False, default="system")

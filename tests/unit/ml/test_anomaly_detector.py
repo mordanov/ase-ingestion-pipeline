@@ -1,10 +1,8 @@
 """Unit tests for ZScoreAnomalyDetector — T020 (must FAIL before implementation)."""
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from src.ml.anomaly_detector import (
     ZScoreAnomalyDetector,
     apply_anomaly_suppression,
@@ -44,7 +42,7 @@ async def test_no_baseline_user_returns_no_flag(detector):
 @pytest.mark.asyncio
 async def test_insufficient_readings_returns_no_baseline(mock_db, detector):
     """Fewer than 10 historical readings → no baseline established."""
-    from sqlalchemy.engine.result import ScalarResult
+
     mock_result = MagicMock()
     mock_result.scalars.return_value.all.return_value = []
     mock_db.execute.return_value = mock_result

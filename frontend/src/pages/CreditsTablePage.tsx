@@ -20,11 +20,8 @@ function EditableBalance({
   const qc = useQueryClient()
 
   useEffect(() => {
-    if (editing) {
-      setValue(String(currentBalance))
-      inputRef.current?.select()
-    }
-  }, [editing, currentBalance])
+    if (editing) inputRef.current?.select()
+  }, [editing])
 
   const mutation = useMutation({
     mutationFn: (newBalance: number) => {
@@ -41,7 +38,10 @@ function EditableBalance({
   if (!editing) {
     return (
       <button
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          setValue(String(currentBalance))
+          setEditing(true)
+        }}
         className="font-mono font-semibold text-blue-700 hover:underline focus:outline-none"
         title="Click to edit"
       >
@@ -52,7 +52,10 @@ function EditableBalance({
 
   const commit = () => {
     const n = parseInt(value, 10)
-    if (isNaN(n) || n === currentBalance) { setEditing(false); return }
+    if (isNaN(n) || n === currentBalance) {
+      setEditing(false)
+      return
+    }
     mutation.mutate(n)
   }
 
@@ -80,7 +83,10 @@ export function CreditsTablePage() {
   const qc = useQueryClient()
 
   useEffect(() => {
-    const t = setTimeout(() => { setDebouncedSearch(search); setOffset(0) }, 300)
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setOffset(0)
+    }, 300)
     return () => clearTimeout(t)
   }, [search])
 
@@ -133,7 +139,9 @@ export function CreditsTablePage() {
                         onSaved={() => qc.invalidateQueries({ queryKey: ['devices'] })}
                       />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-500">{d.cumulative_credits_earned}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-500">
+                      {d.cumulative_credits_earned}
+                    </td>
                     <td className="px-4 py-3 text-right text-slate-500">🔥 {d.streak_days}d</td>
                   </tr>
                 ))}
@@ -150,7 +158,9 @@ export function CreditsTablePage() {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>Page {page} of {totalPages} ({data.total} total)</span>
+              <span>
+                Page {page} of {totalPages} ({data.total} total)
+              </span>
               <div className="flex gap-2">
                 <button
                   disabled={offset === 0}

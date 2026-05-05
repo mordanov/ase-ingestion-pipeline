@@ -17,29 +17,31 @@ provider so queries like "all service1 recs on 2026-05-05" hit a single leaf.
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pyarrow as pa
 from deltalake import write_deltalake
 
-from src.recommendation.interfaces import RawRecommendation
 from src.observability.logging import get_logger
+from src.recommendation.interfaces import RawRecommendation
 
 logger = get_logger(__name__)
 
-_SCHEMA = pa.schema([
-    pa.field("trace_id", pa.string()),
-    pa.field("device_id", pa.string()),
-    pa.field("provider_id", pa.string()),
-    pa.field("short_text", pa.string()),
-    pa.field("normalised_score", pa.float64()),
-    pa.field("detail", pa.string()),
-    pa.field("year", pa.string()),
-    pa.field("month", pa.string()),
-    pa.field("day", pa.string()),
-    pa.field("requested_at", pa.timestamp("us", tz="UTC")),
-])
+_SCHEMA = pa.schema(
+    [
+        pa.field("trace_id", pa.string()),
+        pa.field("device_id", pa.string()),
+        pa.field("provider_id", pa.string()),
+        pa.field("short_text", pa.string()),
+        pa.field("normalised_score", pa.float64()),
+        pa.field("detail", pa.string()),
+        pa.field("year", pa.string()),
+        pa.field("month", pa.string()),
+        pa.field("day", pa.string()),
+        pa.field("requested_at", pa.timestamp("us", tz="UTC")),
+    ]
+)
 
 _PARTITION_BY = ["year", "month", "day", "provider_id"]
 
@@ -62,23 +64,25 @@ class DeltaRecommendationWriter:
         for rec in records:
             ts = rec.requested_at
             if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
+                ts = ts.replace(tzinfo=UTC)
             year = ts.strftime("%Y")
             month = ts.strftime("%m")
             day = ts.strftime("%d")
             for raw in rec.recommendations:
-                rows.append({
-                    "trace_id": rec.trace_id,
-                    "device_id": rec.device_id,
-                    "provider_id": rec.provider_id,
-                    "short_text": raw.short_text,
-                    "normalised_score": raw.normalised_score,
-                    "detail": raw.detail or "",
-                    "year": year,
-                    "month": month,
-                    "day": day,
-                    "requested_at": ts,
-                })
+                rows.append(
+                    {
+                        "trace_id": rec.trace_id,
+                        "device_id": rec.device_id,
+                        "provider_id": rec.provider_id,
+                        "short_text": raw.short_text,
+                        "normalised_score": raw.normalised_score,
+                        "detail": raw.detail or "",
+                        "year": year,
+                        "month": month,
+                        "day": day,
+                        "requested_at": ts,
+                    }
+                )
 
         if not rows:
             return

@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from dataclasses import dataclass
 
 import aiomqtt
 
-from src.ingestion.interfaces import EventPublisher, IngestionAdapter, IngestionEvent, SourceProtocol
-from src.ingestion.validator import validate_event, quarantine_event
+from src.ingestion.interfaces import (
+    EventPublisher,
+    IngestionAdapter,
+    SourceProtocol,
+)
+from src.ingestion.validator import quarantine_event, validate_event
 from src.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -47,7 +50,9 @@ class MqttKinesisConsumer:
             except aiomqtt.MqttError as exc:
                 if not self._running:
                     break
-                logger.warning("mqtt_disconnected", error=str(exc), retry_in=self._config.reconnect_interval)
+                logger.warning(
+                    "mqtt_disconnected", error=str(exc), retry_in=self._config.reconnect_interval
+                )
                 await asyncio.sleep(self._config.reconnect_interval)
             except Exception as exc:
                 logger.error("mqtt_consumer_error", error=str(exc))
@@ -89,7 +94,9 @@ class MqttKinesisConsumer:
                 event.source_protocol = SourceProtocol.MQTT
                 result = await validate_event(event, session)
                 if not result.is_valid:
-                    await quarantine_event(event, result.error_code or "INVALID", result.error_message or "", session)
+                    await quarantine_event(
+                        event, result.error_code or "INVALID", result.error_message or "", session
+                    )
                     continue
                 if result.is_anomaly:
                     event.is_anomaly = True

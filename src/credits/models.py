@@ -1,4 +1,5 @@
 """Credits domain models — enums are defined in db/models to avoid duplication."""
+
 from src.db.models import CreditActionType, RewardTier
 
 TIER_THRESHOLDS = {

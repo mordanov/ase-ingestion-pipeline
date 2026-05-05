@@ -5,16 +5,17 @@ Revises:
 Create Date: 2026-05-04
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -35,9 +36,7 @@ def upgrade() -> None:
         sa.Column("height_cm", sa.Float(), nullable=False),
         sa.Column("weight_kg", sa.Float(), nullable=False),
         sa.Column("credit_balance", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column(
-            "cumulative_credits_spent", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("cumulative_credits_spent", sa.Integer(), nullable=False, server_default="0"),
         sa.Column(
             "reward_tier",
             sa.Enum("bronze", "silver", "gold", "platinum", name="rewardtier"),
@@ -74,9 +73,7 @@ def upgrade() -> None:
         sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
             "processing_status",
-            sa.Enum(
-                "pending", "processing", "completed", "failed", name="batchstatus"
-            ),
+            sa.Enum("pending", "processing", "completed", "failed", name="batchstatus"),
             nullable=False,
             server_default="pending",
         ),
@@ -127,7 +124,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("event_id"),
     )
-    op.create_index("ix_telemetry_events_device_id_received_at", "telemetry_events", ["device_id", "received_at"])
+    op.create_index(
+        "ix_telemetry_events_device_id_received_at",
+        "telemetry_events",
+        ["device_id", "received_at"],
+    )
 
     # recommendation_requests
     op.create_table(
@@ -151,7 +152,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["device_id"], ["devices.device_id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_recommendation_requests_device_id", "recommendation_requests", ["device_id"])
+    op.create_index(
+        "ix_recommendation_requests_device_id", "recommendation_requests", ["device_id"]
+    )
 
     # credit_transactions
     op.create_table(
@@ -161,9 +164,7 @@ def upgrade() -> None:
         sa.Column("amount", sa.Integer(), nullable=False),
         sa.Column(
             "action_type",
-            sa.Enum(
-                "recommendation", "registration_bonus", "top_up", name="creditactiontype"
-            ),
+            sa.Enum("recommendation", "registration_bonus", "top_up", name="creditactiontype"),
             nullable=False,
         ),
         sa.Column("resulting_balance", sa.Integer(), nullable=False),
@@ -193,9 +194,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
-        sa.ForeignKeyConstraint(
-            ["device_id"], ["devices.device_id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["device_id"], ["devices.device_id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_quarantine_records_device_id", "quarantine_records", ["device_id"])

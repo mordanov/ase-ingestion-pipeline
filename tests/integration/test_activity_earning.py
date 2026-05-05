@@ -1,12 +1,13 @@
 """Integration tests for credit earning via activity ingestion (T021)."""
+
 import uuid
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
-
 from src.db.models import Device
-from src.db.models.credits import CreditTransaction, CreditActionType
+from src.db.models.credits import CreditActionType, CreditTransaction
+
 from tests.conftest import make_telemetry_event
 
 

@@ -1,11 +1,12 @@
 """Device registration and twin state endpoints (fully implemented in US2 / T037-T045)."""
+
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select, or_
+from sqlalchemy import func, select
 
 from src.api.dependencies import AppSettings, DbSession, TwinAdapter
 from src.db.models import Device, DeviceType, RewardTier
@@ -151,6 +152,7 @@ async def register_device(
     settings: AppSettings,
 ) -> Any:
     from src.credits.config_service import ConfigService
+
     config_svc = ConfigService(db)
 
     result = await db.execute(select(Device).where(Device.device_id == body.device_id))
@@ -192,14 +194,15 @@ async def register_device(
         cumulative_credits_spent=0,
         reward_tier=RewardTier.bronze,
         iot_thing_name=iot_thing_name,
-        registered_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        registered_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     db.add(device)
     await db.commit()
     await db.refresh(device)
 
     from src.observability.metrics import ACTIVE_DEVICES_TOTAL
+
     ACTIVE_DEVICES_TOTAL.inc()
 
     logger.info("device_registered", device_id=device.device_id)
@@ -245,6 +248,7 @@ async def get_device_credits(device_id: str, db: DbSession) -> Any:
 
     from src.credits.config_service import ConfigService
     from src.credits.tier_engine import TierEngine
+
     config = await ConfigService(db).get_active()
     tier_engine = TierEngine()
 
@@ -286,7 +290,7 @@ async def get_device_transactions(
     offset: int = Query(default=0, ge=0),
     action_type: str | None = Query(default=None),
 ) -> Any:
-    from src.db.models.credits import CreditTransaction, CreditActionType
+    from src.db.models.credits import CreditActionType, CreditTransaction
 
     result = await db.execute(select(Device.device_id).where(Device.device_id == device_id))
     if result.scalar_one_or_none() is None:
@@ -295,13 +299,15 @@ async def get_device_transactions(
     base_query = select(CreditTransaction).where(CreditTransaction.device_id == device_id)
     if action_type is not None:
         try:
-            base_query = base_query.where(CreditTransaction.action_type == CreditActionType(action_type))
+            base_query = base_query.where(
+                CreditTransaction.action_type == CreditActionType(action_type)
+            )
         except ValueError:
-            raise HTTPException(status_code=422, detail=f"Unknown action_type: {action_type!r}")
+            raise HTTPException(
+                status_code=422, detail=f"Unknown action_type: {action_type!r}"
+            ) from None
 
-    count_result = await db.execute(
-        select(func.count()).select_from(base_query.subquery())
-    )
+    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
     total = count_result.scalar_one()
 
     items_result = await db.execute(
@@ -354,17 +360,19 @@ async def get_device_events(
         p = ev.payload or {}
         hr = p.get("heart_rate") or {}
         spo2 = p.get("spo2") or {}
-        items.append(MeasurementItem(
-            event_id=ev.event_id,
-            event_timestamp=ev.event_timestamp.isoformat(),
-            received_at=ev.received_at.isoformat(),
-            scenario=p.get("scenario"),
-            heart_rate_bpm=hr.get("bpm"),
-            spo2_pct=spo2.get("percentage"),
-            validation_status=ev.validation_status.value,
-            is_anomaly=ev.is_anomaly,
-            source_protocol=ev.source_protocol.value,
-        ))
+        items.append(
+            MeasurementItem(
+                event_id=ev.event_id,
+                event_timestamp=ev.event_timestamp.isoformat(),
+                received_at=ev.received_at.isoformat(),
+                scenario=p.get("scenario"),
+                heart_rate_bpm=hr.get("bpm"),
+                spo2_pct=spo2.get("percentage"),
+                validation_status=ev.validation_status.value,
+                is_anomaly=ev.is_anomaly,
+                source_protocol=ev.source_protocol.value,
+            )
+        )
 
     return MeasurementHistoryResponse(total=total, items=items)
 
@@ -382,6 +390,7 @@ async def top_up_credits(device_id: str, body: TopUpRequest, db: DbSession) -> A
     from src.credits.config_service import ConfigService
     from src.credits.ledger import CreditLedger
     from src.db.models.credits import CreditActionType
+
     config = await ConfigService(db).get_active()
     ledger = CreditLedger()
     action_type = CreditActionType.top_up if body.amount > 0 else CreditActionType.adjustment

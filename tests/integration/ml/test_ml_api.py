@@ -1,7 +1,7 @@
 """Integration tests for personalised recommendations — T015 (must FAIL before implementation)."""
+
 import pytest
 from httpx import AsyncClient
-
 from src.api.main import app
 
 
@@ -18,7 +18,12 @@ async def test_cold_start_device_gets_null_scores(client):
     # Register a fresh device
     reg = await client.post(
         "/api/v1/devices",
-        json={"device_id": "ml-test-cold-001", "name": "Cold Start Test", "height_cm": 175.0, "weight_kg": 70.0},
+        json={
+            "device_id": "ml-test-cold-001",
+            "name": "Cold Start Test",
+            "height_cm": 175.0,
+            "weight_kg": 70.0,
+        },
         headers={"X-API-Key": "dev-key"},
     )
     assert reg.status_code in (200, 201, 409)  # 409 if already exists

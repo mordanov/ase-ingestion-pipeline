@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,15 +14,15 @@ class DbModelRegistry(ModelRegistry):
     def __init__(self, db: AsyncSession):
         self._db = db
 
-    async def get_active_artifact_path(self, model_type: str) -> Optional[str]:
+    async def get_active_artifact_path(self, model_type: str) -> str | None:
         model = await self._get_active(model_type)
         return model.artifact_path if model else None
 
-    async def get_active_version(self, model_type: str) -> Optional[int]:
+    async def get_active_version(self, model_type: str) -> int | None:
         model = await self._get_active(model_type)
         return model.version if model else None
 
-    async def _get_active(self, model_type: str) -> Optional[TrainedModel]:
+    async def _get_active(self, model_type: str) -> TrainedModel | None:
         result = await self._db.execute(
             select(TrainedModel).where(
                 TrainedModel.model_type == ModelType(model_type),
@@ -37,8 +36,8 @@ class DbModelRegistry(ModelRegistry):
         model_type: str,
         artifact_path: str,
         training_job_id: str,
-        ndcg_at_10: Optional[float] = None,
-        f1_score: Optional[float] = None,
+        ndcg_at_10: float | None = None,
+        f1_score: float | None = None,
     ) -> int:
         """Register a new model, archive the previous active one, return new model id."""
         prev = await self._get_active(model_type)
@@ -59,7 +58,7 @@ class DbModelRegistry(ModelRegistry):
             ndcg_at_10=ndcg_at_10,
             f1_score=f1_score,
             deployment_status=ModelDeploymentStatus.active,
-            deployed_at=datetime.now(timezone.utc),
+            deployed_at=datetime.now(UTC),
         )
         self._db.add(model)
         await self._db.flush()
@@ -86,6 +85,8 @@ class DbModelRegistry(ModelRegistry):
 
         current.deployment_status = ModelDeploymentStatus.archived
         predecessor.deployment_status = ModelDeploymentStatus.active
-        predecessor.deployed_at = datetime.now(timezone.utc)
-        logger.info("model_rollback", model_type=model_type, rolled_back_to_version=predecessor.version)
+        predecessor.deployed_at = datetime.now(UTC)
+        logger.info(
+            "model_rollback", model_type=model_type, rolled_back_to_version=predecessor.version
+        )
         return True

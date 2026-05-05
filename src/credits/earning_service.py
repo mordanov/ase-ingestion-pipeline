@@ -3,10 +3,10 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.credits import CreditActionType, CreditTransaction
-from src.db.models.device import Device
 from src.credits.ledger import CreditLedger
 from src.credits.tier_engine import TierEngine
+from src.db.models.credits import CreditActionType, CreditTransaction
+from src.db.models.device import Device
 from src.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -69,6 +69,7 @@ class EarningService:
             device.last_activity_date = today
 
             from src.observability.metrics import DEVICE_STREAK_DAYS
+
             DEVICE_STREAK_DAYS.labels(device_id=device.device_id).set(device.streak_days or 0)
 
             # Check streak milestones

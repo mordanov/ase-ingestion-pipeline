@@ -29,32 +29,45 @@ async def lifespan(app: FastAPI):
 
     import asyncio as _asyncio
     import os as _os
-    from alembic.config import Config as AlembicConfig
+
     from alembic import command as alembic_command
+    from alembic.config import Config as AlembicConfig
+
     _alembic_ini = _os.path.join(_os.path.dirname(__file__), "..", "..", "alembic.ini")
     _alembic_cfg = AlembicConfig(_alembic_ini)
     await _asyncio.to_thread(alembic_command.upgrade, _alembic_cfg, "head")
     logger.info("migrations_applied")
 
     from src.observability.tracing import configure_tracer
+
     configure_tracer(settings.otel_service_name)
 
     # Seed default credit config if missing
     from src.api.dependencies import get_db_session as _get_db
     from src.credits.config_service import ConfigService as _ConfigService
+
     async for _db in _get_db():
         await _ConfigService(_db).seed_default_if_missing()
         break
 
     # Seed Prometheus gauges from DB so dashboards show current state after restart
-    from sqlalchemy import func as _func, select as _select
+    from sqlalchemy import func as _func
+    from sqlalchemy import select as _select
+
     from src.db.models import Device as _Device
     from src.observability.metrics import (
         ACTIVE_DEVICES_TOTAL as _ACTIVE_DEVICES_TOTAL,
-        DEVICE_CREDIT_BALANCE as _DEVICE_CREDIT_BALANCE,
-        DEVICE_STREAK_DAYS as _DEVICE_STREAK_DAYS,
+    )
+    from src.observability.metrics import (
         CREDIT_TIER_TOTAL as _CREDIT_TIER_TOTAL,
     )
+    from src.observability.metrics import (
+        DEVICE_CREDIT_BALANCE as _DEVICE_CREDIT_BALANCE,
+    )
+    from src.observability.metrics import (
+        DEVICE_STREAK_DAYS as _DEVICE_STREAK_DAYS,
+    )
+
     async for _db in _get_db():
         _count = (await _db.execute(_select(_func.count(_Device.id)))).scalar_one()
         _ACTIVE_DEVICES_TOTAL.set(_count)
@@ -74,10 +87,13 @@ async def lifespan(app: FastAPI):
         break
 
     # Start MQTT consumer to ingest telemetry published to the local Mosquitto broker
-    from src.ingestion.adapters.mqtt_consumer import MqttKinesisConsumer, MqttConsumerConfig
-    from src.ingestion.adapters.http_adapter import HttpIngestionAdapter
-    from src.api.dependencies import get_publisher, get_db_session as _get_db_mqtt
     from urllib.parse import urlparse as _urlparse
+
+    from src.api.dependencies import get_db_session as _get_db_mqtt
+    from src.api.dependencies import get_publisher
+    from src.ingestion.adapters.http_adapter import HttpIngestionAdapter
+    from src.ingestion.adapters.mqtt_consumer import MqttConsumerConfig, MqttKinesisConsumer
+
     _mqtt_url = _urlparse(settings.mqtt_broker_url)
     _mqtt_consumer = MqttKinesisConsumer(
         config=MqttConsumerConfig(
@@ -90,16 +106,19 @@ async def lifespan(app: FastAPI):
         session_factory=_get_db_mqtt,
     )
     import asyncio as _asyncio
+
     _asyncio.create_task(_mqtt_consumer.start())
     logger.info("mqtt_consumer_started", broker=settings.mqtt_broker_url)
 
     # Start background embedding refresh so per-device personalization is populated in Redis
-    from src.ml.feature_store import RedisFeatureStore, refresh_embeddings_for_all_devices
     from src.api.dependencies import get_db_session as _get_db_embed
+    from src.ml.feature_store import RedisFeatureStore, refresh_embeddings_for_all_devices
+
     _feature_store = RedisFeatureStore(
         redis_url=settings.redis_url,
         ttl_seconds=settings.embedding_ttl_seconds,
     )
+
     async def _start_embedding_refresh():
         async for _db in _get_db_embed():
             await refresh_embeddings_for_all_devices(
@@ -111,13 +130,25 @@ async def lifespan(app: FastAPI):
                 min_telemetry_days=settings.min_telemetry_days,
             )
             break
+
     import asyncio as _asyncio
+
     _asyncio.create_task(_start_embedding_refresh())
     logger.info("embedding_refresh_task_started")
 
     # Import routers here to avoid circular imports at module load time
-    from src.api.routers import credit_config, devices, health, ingest, provider_schemas, recommendations
-    from src.api.routers import ml_training, ml_metrics, reports, rules
+    from src.api.routers import (
+        credit_config,
+        devices,
+        health,
+        ingest,
+        ml_metrics,
+        ml_training,
+        provider_schemas,
+        recommendations,
+        reports,
+        rules,
+    )
 
     app.include_router(ingest.router)
     app.include_router(devices.router)

@@ -1,10 +1,10 @@
 """Unit tests for FeatureEngineer — T032 (must FAIL before implementation)."""
+
 import struct
 
 import pytest
-
 from src.ml.training.data_extractor import TelemetryRecord
-from src.ml.training.feature_engineer import FeatureEngineer, _EMBEDDING_DIM
+from src.ml.training.feature_engineer import _EMBEDDING_DIM, FeatureEngineer
 
 
 def _make_record(device_id: str, day: str, heart_rate: float = 72.0) -> TelemetryRecord:

@@ -57,11 +57,15 @@ export function TransactionTable({ deviceId }: TransactionTableProps) {
                     {ACTION_TYPE_LABELS[tx.action_type] ?? tx.action_type}
                   </span>
                 </td>
-                <td className={`px-3 py-2 text-right font-mono font-medium ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <td
+                  className={`px-3 py-2 text-right font-mono font-medium ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                >
                   {tx.amount >= 0 ? `+${tx.amount}` : tx.amount}
                 </td>
                 <td className="px-3 py-2 text-slate-600 max-w-xs truncate">{tx.reason}</td>
-                <td className="px-3 py-2 text-right font-mono text-slate-700">{tx.resulting_balance}</td>
+                <td className="px-3 py-2 text-right font-mono text-slate-700">
+                  {tx.resulting_balance}
+                </td>
               </tr>
             ))}
           </tbody>

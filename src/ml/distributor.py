@@ -3,8 +3,7 @@ import json
 import os
 import uuid
 import zipfile
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +25,7 @@ class Distributor:
         self._db = db
         self._package_dir = package_dir
 
-    async def build_package(self) -> Optional[OnDeviceModelPackage]:
+    async def build_package(self) -> OnDeviceModelPackage | None:
         """Build a new distribution package from the currently active models.
 
         Returns the persisted OnDeviceModelPackage or None if models are not available.
@@ -42,7 +41,7 @@ class Distributor:
 
         filename = (
             f"ml_package_v{reranker.version}_{anomaly_model.version}_"
-            f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.zip"
+            f"{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.zip"
         )
         package_path = os.path.join(self._package_dir, filename)
 
@@ -77,7 +76,7 @@ class Distributor:
         )
         return record
 
-    async def _get_active(self, model_type: ModelType) -> Optional[TrainedModel]:
+    async def _get_active(self, model_type: ModelType) -> TrainedModel | None:
         result = await self._db.execute(
             select(TrainedModel).where(
                 TrainedModel.model_type == model_type,
@@ -86,12 +85,10 @@ class Distributor:
         )
         return result.scalar_one_or_none()
 
-    def _write_zip(
-        self, path: str, reranker: TrainedModel, anomaly_model: TrainedModel
-    ) -> None:
+    def _write_zip(self, path: str, reranker: TrainedModel, anomaly_model: TrainedModel) -> None:
         manifest = {
             "schema_version": _MANIFEST_SCHEMA_VERSION,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "reranker": {
                 "version": reranker.version,
                 "input_dim": self._infer_dim(reranker),
@@ -128,7 +125,7 @@ class Distributor:
     def _infer_dim(self, model: TrainedModel) -> int:
         return 64 if model.model_type == ModelType.reranker else 16
 
-    async def get_latest_package(self) -> Optional[OnDeviceModelPackage]:
+    async def get_latest_package(self) -> OnDeviceModelPackage | None:
         result = await self._db.execute(
             select(OnDeviceModelPackage).order_by(OnDeviceModelPackage.created_at.desc()).limit(1)
         )

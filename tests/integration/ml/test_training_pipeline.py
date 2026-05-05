@@ -1,11 +1,12 @@
 """Integration test for full training pipeline run — T035."""
-import os
-import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
 
+import os
+from datetime import UTC
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.ml_training_job import TrainingJob, TrainingJobStatus
-from src.ml.training.pipeline import TrainingPipeline, TrainingAlreadyRunningError
+from src.ml.training.pipeline import TrainingAlreadyRunningError, TrainingPipeline
 
 pytestmark = pytest.mark.integration
 
@@ -54,7 +55,7 @@ async def test_pipeline_creates_artifact_files(db_session: AsyncSession, tmp_pat
 async def test_pipeline_registers_active_models(db_session: AsyncSession, tmp_path):
     """After a successful run, both model types have an active TrainedModel record."""
     from sqlalchemy import select
-    from src.db.models.ml_trained_model import TrainedModel, ModelDeploymentStatus, ModelType
+    from src.db.models.ml_trained_model import ModelDeploymentStatus, ModelType, TrainedModel
 
     artifact_dir = str(tmp_path / "models")
     os.makedirs(artifact_dir, exist_ok=True)
@@ -91,16 +92,14 @@ async def test_pipeline_registers_active_models(db_session: AsyncSession, tmp_pa
 async def test_concurrent_pipeline_raises(db_session: AsyncSession, tmp_path):
     """Second pipeline.run() while first is in 'running' status raises TrainingAlreadyRunningError."""
     import uuid
-    from datetime import datetime, timezone
-    from sqlalchemy import insert
-    from src.db.models.ml_training_job import TrainingJob
+    from datetime import datetime
 
     # Manually insert a running job to simulate concurrent run
     running_job = TrainingJob(
         id=uuid.uuid4(),
         status=TrainingJobStatus.running,
         triggered_by="another-runner",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
     db_session.add(running_job)
     await db_session.commit()

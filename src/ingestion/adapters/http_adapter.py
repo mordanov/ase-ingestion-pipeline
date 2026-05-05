@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from src.ingestion.interfaces import IngestionAdapter, IngestionEvent, SourceProtocol
@@ -36,15 +36,19 @@ class HttpIngestionAdapter(IngestionAdapter):
         raw_ts = raw.get("timestamp", "")
         try:
             ts = datetime.fromisoformat(raw_ts)
-        except (ValueError, TypeError):
-            raise ValidationError("timestamp", "INVALID_TIMESTAMP", f"Cannot parse timestamp: {raw_ts!r}")
+        except (ValueError, TypeError) as exc:
+            raise ValidationError(
+                "timestamp", "INVALID_TIMESTAMP", f"Cannot parse timestamp: {raw_ts!r}"
+            ) from exc
 
         return IngestionEvent(
             device_id=device_id,
             event_id=event_id,
             source_protocol=SourceProtocol.HTTP,
             event_timestamp=ts,
-            payload={k: v for k, v in raw.items() if k not in ("device_id", "event_id", "timestamp")},
+            payload={
+                k: v for k, v in raw.items() if k not in ("device_id", "event_id", "timestamp")
+            },
             trace_id=str(uuid.uuid4().hex),
             is_batch=batch_id is not None,
             batch_id=batch_id,

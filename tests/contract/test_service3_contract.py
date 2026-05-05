@@ -2,10 +2,12 @@
 
 Skipped unless SERVICE3_ENDPOINT env var is set.
 """
+
 import os
+
+import httpx
 import pytest
 import pytest_asyncio
-import httpx
 
 SERVICE3_ENDPOINT = os.getenv("SERVICE3_ENDPOINT", "")
 
@@ -41,7 +43,7 @@ async def test_service3_returns_recommendations(http_client):
         first = body["recommendations"][0]
         assert "shortText" in first
         assert "confidence" in first
-        assert isinstance(first["confidence"], (int, float))
+        assert isinstance(first["confidence"], int | float)
     else:
         payload = {
             "weight": 70.0 * 2.20462,
@@ -56,7 +58,7 @@ async def test_service3_returns_recommendations(http_client):
         first = body["suggestions"][0]
         assert "text" in first
         assert "priority" in first
-        assert isinstance(first["priority"], (int, float))
+        assert isinstance(first["priority"], int | float)
 
 
 @pytest.mark.asyncio
@@ -69,8 +71,8 @@ async def test_service3_handles_missing_fields(http_client):
 @pytest.mark.asyncio
 async def test_service3_normalised_score_range(http_client):
     """Normalised scores from Service3 must fall in [0, 1000]."""
-    from src.recommendation.adapters.service3_adapter import Service3Adapter
     from src.config import Settings
+    from src.recommendation.adapters.service3_adapter import Service3Adapter
 
     settings = Settings(
         service3_endpoint=SERVICE3_ENDPOINT,

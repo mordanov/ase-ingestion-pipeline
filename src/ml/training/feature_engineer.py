@@ -1,8 +1,6 @@
 import struct
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional
 
 from src.ml.training.data_extractor import TelemetryRecord
 from src.observability.logging import get_logger
@@ -44,12 +42,14 @@ class FeatureEngineer:
             if days < self._min_days:
                 continue
             vec = self._compute_vector(device_records)
-            features.append(DeviceFeatures(
-                device_id=device_id,
-                vector=vec,
-                telemetry_days=days,
-                sample_count=len(device_records),
-            ))
+            features.append(
+                DeviceFeatures(
+                    device_id=device_id,
+                    vector=vec,
+                    telemetry_days=days,
+                    sample_count=len(device_records),
+                )
+            )
 
         logger.info(
             "features_built",
@@ -71,7 +71,7 @@ class FeatureEngineer:
             if values:
                 mean = sum(values) / len(values)
                 variance = sum((v - mean) ** 2 for v in values) / len(values)
-                std = variance ** 0.5
+                std = variance**0.5
                 features.extend([mean / 200.0, std / 50.0])  # rough normalisation
             else:
                 features.extend([0.0, 0.0])

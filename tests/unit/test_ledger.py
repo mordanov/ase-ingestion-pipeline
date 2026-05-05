@@ -1,5 +1,4 @@
 """Unit tests for src/credits/ledger.py (T046)."""
-import pytest
 
 from src.credits.ledger import CreditLedger
 

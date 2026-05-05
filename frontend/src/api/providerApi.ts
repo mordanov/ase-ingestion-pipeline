@@ -65,8 +65,7 @@ export interface CreateProviderSchemaRequest {
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-export const listProviderSchemas = () =>
-  apiFetch<ProviderSchema[]>('/api/v1/provider-schemas')
+export const listProviderSchemas = () => apiFetch<ProviderSchema[]>('/api/v1/provider-schemas')
 
 export const createProviderSchema = (data: CreateProviderSchemaRequest) =>
   apiFetch<ProviderSchema>('/api/v1/provider-schemas', {

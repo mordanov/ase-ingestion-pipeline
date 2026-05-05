@@ -47,6 +47,7 @@ class Service2Adapter(ProviderAdapter):
             # Unwrap Lambda proxy response envelope if present
             if isinstance(body, dict) and "body" in body and "statusCode" in body:
                 import json as _json
+
                 raw = body["body"]
                 body = _json.loads(raw) if isinstance(raw, str) else raw
 
@@ -69,9 +70,16 @@ class Service2Adapter(ProviderAdapter):
                 for item in raw_recs
                 if "title" in item and "priority" in item
             ]
-            return ProviderResult(provider_id=self.provider_id, recommendations=recs, duration_ms=duration_ms)
+            return ProviderResult(
+                provider_id=self.provider_id, recommendations=recs, duration_ms=duration_ms
+            )
 
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
             logger.error("service2_error", error=str(exc))
-            return ProviderResult(provider_id=self.provider_id, recommendations=[], duration_ms=duration_ms, error=str(exc))
+            return ProviderResult(
+                provider_id=self.provider_id,
+                recommendations=[],
+                duration_ms=duration_ms,
+                error=str(exc),
+            )

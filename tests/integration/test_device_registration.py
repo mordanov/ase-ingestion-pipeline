@@ -1,4 +1,5 @@
 """Integration tests for device registration (T037)."""
+
 import uuid
 
 import pytest
@@ -21,7 +22,9 @@ def _registration_payload(device_id: str | None = None) -> dict:
 @pytest.mark.asyncio
 async def test_register_device_returns_201(async_client: AsyncClient):
     payload = _registration_payload()
-    resp = await async_client.post("/api/v1/devices", json=payload, headers={"X-API-Key": "test-key"})
+    resp = await async_client.post(
+        "/api/v1/devices", json=payload, headers={"X-API-Key": "test-key"}
+    )
 
     assert resp.status_code == 201
     data = resp.json()
@@ -60,5 +63,7 @@ async def test_get_device_returns_twin_state(async_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_get_unknown_device_returns_404(async_client: AsyncClient):
-    resp = await async_client.get("/api/v1/devices/nonexistent-xyz", headers={"X-API-Key": "test-key"})
+    resp = await async_client.get(
+        "/api/v1/devices/nonexistent-xyz", headers={"X-API-Key": "test-key"}
+    )
     assert resp.status_code == 404
