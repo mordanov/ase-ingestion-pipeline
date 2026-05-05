@@ -61,8 +61,6 @@ infra/certs/*.crt
 .LSOverride
 
 # Alembic
-src/db/migrations/versions/*.py
-!src/db/migrations/versions/.gitkeep
 
 # Misc
 *.tmp
