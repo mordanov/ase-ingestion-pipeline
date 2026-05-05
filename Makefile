@@ -88,4 +88,4 @@ shell:
 	$(COMPOSE) exec app bash
 
 compact-delta:
-	$(PYTHON) scripts/compact_delta.py --base-dir ./data/delta --recommendations-dir ./data/recommendations
+	$(PYTHON) scripts/compact_delta.py --base-dir ./data/delta --recommendations-dir ./data/recommendations --log-retention-hours 1
