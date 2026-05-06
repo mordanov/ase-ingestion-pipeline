@@ -4,6 +4,7 @@ import httpx
 
 from src.observability.logging import get_logger
 from src.recommendation.interfaces import ProviderAdapter, ProviderResult, RawRecommendation
+from src.recommendation.retry import post_with_retry
 
 logger = get_logger(__name__)
 
@@ -18,12 +19,18 @@ class Service1Adapter(ProviderAdapter):
 
     async def get_recommendations(self, height_cm: float, weight_kg: float) -> ProviderResult:
         start = time.monotonic()
+        req_body = {"height": height_cm, "weight": weight_kg, "token": self._token}
         try:
-            resp = await self._client.post(
-                self._endpoint,
-                json={"height": height_cm, "weight": weight_kg, "token": self._token},
-            )
+            resp = await post_with_retry(self._client, self._endpoint, req_body, self.provider_id)
             duration_ms = int((time.monotonic() - start) * 1000)
+
+            if resp is None:
+                return ProviderResult(
+                    provider_id=self.provider_id,
+                    recommendations=[],
+                    duration_ms=duration_ms,
+                    error="retries_exhausted",
+                )
 
             if resp.status_code != 200:
                 return ProviderResult(
@@ -65,7 +72,6 @@ class Service1Adapter(ProviderAdapter):
 
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("service1_error", error=str(exc))
             return ProviderResult(
                 provider_id=self.provider_id,
                 recommendations=[],

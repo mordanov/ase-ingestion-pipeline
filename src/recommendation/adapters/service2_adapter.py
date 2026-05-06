@@ -5,6 +5,7 @@ import httpx
 
 from src.observability.logging import get_logger
 from src.recommendation.interfaces import ProviderAdapter, ProviderResult, RawRecommendation
+from src.recommendation.retry import post_with_retry
 
 logger = get_logger(__name__)
 
@@ -23,17 +24,25 @@ class Service2Adapter(ProviderAdapter):
         start = time.monotonic()
         mass_lbs = round(weight_kg * 2.20462, 4)
         height_feet = round(height_cm / 30.48, 4)
+        # Generate session_token once so all retry attempts use the same value
+        session_token = str(uuid.uuid4())
 
         try:
-            resp = await self._client.post(
-                self._endpoint,
-                json={
-                    "measurements": {"mass": mass_lbs, "height": height_feet},
-                    "birth_date": DEFAULT_BIRTH_DATE,
-                    "session_token": str(uuid.uuid4()),
-                },
-            )
+            req_body = {
+                "measurements": {"mass": mass_lbs, "height": height_feet},
+                "birth_date": DEFAULT_BIRTH_DATE,
+                "session_token": session_token,
+            }
+            resp = await post_with_retry(self._client, self._endpoint, req_body, self.provider_id)
             duration_ms = int((time.monotonic() - start) * 1000)
+
+            if resp is None:
+                return ProviderResult(
+                    provider_id=self.provider_id,
+                    recommendations=[],
+                    duration_ms=duration_ms,
+                    error="retries_exhausted",
+                )
 
             if resp.status_code != 200:
                 return ProviderResult(
@@ -76,7 +85,6 @@ class Service2Adapter(ProviderAdapter):
 
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("service2_error", error=str(exc))
             return ProviderResult(
                 provider_id=self.provider_id,
                 recommendations=[],
