@@ -4,6 +4,7 @@ import httpx
 
 from src.observability.logging import get_logger
 from src.recommendation.interfaces import ProviderAdapter, ProviderResult, RawRecommendation
+from src.recommendation.retry import post_with_retry
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,6 @@ class Service3Adapter(ProviderAdapter):
             return await self._call_service1_schema(height_cm, weight_kg, start)
         except Exception as exc:
             duration_ms = int((time.monotonic() - start) * 1000)
-            logger.error("service3_error", error=str(exc))
             return ProviderResult(
                 provider_id=self.provider_id,
                 recommendations=[],
@@ -47,11 +47,16 @@ class Service3Adapter(ProviderAdapter):
     async def _call_service1_schema(
         self, height_cm: float, weight_kg: float, start: float
     ) -> ProviderResult:
-        resp = await self._client.post(
-            self._endpoint,
-            json={"height": height_cm, "weight": weight_kg, "token": self._token},
-        )
+        req_body = {"height": height_cm, "weight": weight_kg, "token": self._token}
+        resp = await post_with_retry(self._client, self._endpoint, req_body, self.provider_id)
         duration_ms = int((time.monotonic() - start) * 1000)
+        if resp is None:
+            return ProviderResult(
+                provider_id=self.provider_id,
+                recommendations=[],
+                duration_ms=duration_ms,
+                error="retries_exhausted",
+            )
         if resp.status_code != 200:
             return ProviderResult(
                 provider_id=self.provider_id,
@@ -88,15 +93,22 @@ class Service3Adapter(ProviderAdapter):
 
         mass_lbs = round(weight_kg * 2.20462, 4)
         height_feet = round(height_cm / 30.48, 4)
-        resp = await self._client.post(
-            self._endpoint,
-            json={
-                "measurements": {"mass": mass_lbs, "height": height_feet},
-                "birth_date": 631152000,
-                "session_token": str(_uuid.uuid4()),
-            },
-        )
+        # Generate session_token once so all retry attempts use the same value
+        session_token = str(_uuid.uuid4())
+        req_body = {
+            "measurements": {"mass": mass_lbs, "height": height_feet},
+            "birth_date": 631152000,
+            "session_token": session_token,
+        }
+        resp = await post_with_retry(self._client, self._endpoint, req_body, self.provider_id)
         duration_ms = int((time.monotonic() - start) * 1000)
+        if resp is None:
+            return ProviderResult(
+                provider_id=self.provider_id,
+                recommendations=[],
+                duration_ms=duration_ms,
+                error="retries_exhausted",
+            )
         if resp.status_code != 200:
             return ProviderResult(
                 provider_id=self.provider_id,
